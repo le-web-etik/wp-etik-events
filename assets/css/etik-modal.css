@@ -1,0 +1,100 @@
+/**********************************************************************************/
+/*  MODAL ISCRIPTION  */
+/**********************************************************************************/
+
+/* Modal base */
+.etik-modal { display:none; position:fixed; inset:0; z-index:9999; align-items:center; justify-content:center; }
+.etik-modal[aria-hidden="false"] { display:flex; }
+.etik-modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.75); }
+.etik-modal-dialog { position:relative; z-index:2; width:100%; max-width:540px; margin:16px; }
+.etik-modal-content { background:#fff; border-radius:10px; padding:18px; box-shadow:0 20px 48px rgba(8,12,20,0.18); }
+
+.etik-modal h3.etik-title{ font-weight: 400; line-height: 1; }
+
+/* Close */
+.etik-modal-close { position:absolute; right:10px; top:10px; background:transparent; border:0; font-size:22px; cursor:pointer; }
+
+/* Tabs */
+.etik-tabs { display:flex; gap:8px; }
+.etik-tab { background:transparent; border:1px solid transparent; padding:8px 12px; cursor:pointer; border-radius:6px; font-weight:600; letter-spacing: 1px; transition: all 0.4s;; }
+.etik-tab.active { background:#2ea3f2; color: #e3e3e3; border-color:#e6e9ec; }
+
+/* Panels */
+.etik-panels { min-height:120px; padding-top: 1rem; }
+.etik-panel { display:none; }
+.etik-panel.active { display:block; }
+
+/* Forms */
+.etik-modal-content{
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.etik-insc-form label, .etik-login-form label { 
+  padding: 0.5rem;
+  box-sizing: border-box;
+  grid-template-rows: 100px 100px;
+  flex: 1 200px;
+}
+.etik-insc-form input, .etik-login-form input { width:100%; padding:4px 10px !important; margin-top:6px; border-radius:6px; border:1px solid #ddd; box-sizing:border-box; }
+.etik-insc-form input[type="checkbox"], .etik-login-form input[type="checkbox"] {
+  width: auto;
+}
+.etik-insc-form input[type="email"], .etik-login-form input[type="email"] {
+  margin: 0px;
+}
+.etik-modal-content i{
+  color: #a12d2d;
+}
+.etik-form-actions { margin-top:12px; display:flex; justify-content:flex-end; }
+.etik-btn { background:#0b7a4b; color:#fff; padding:8px 14px; border-radius:8px; border:0; cursor:pointer; }
+
+/* Feedback */
+.etik-feedback { margin-top:12px; padding:10px; border-radius:6px; font-weight:600; }
+.etik-feedback.success { background:#e6f6ed; color:#0b7a4b; display:block; }
+.etik-feedback.error { background:#fdecea; color:#a12d2d; display:block; }
+
+.etik-formation-btn {
+  color: #0C71C3 !important;
+  border-width: 2px !important;
+  font-size: 16px;
+  padding: 2px 1em;
+  background-color: transparent;
+  border: 2px solid;
+  border-radius: 4px;
+  display: inline-block;
+  line-height: 1.7em;
+  cursor: pointer;
+
+  transition: all 0.4s;
+}
+
+.etik-formation-btn:hover{
+  border: 2px solid transparent;
+  background-color: rgba(0,0,0,.05);
+}
+
+
+/* Small screens */
+@media (max-width:600px) {
+  .etik-modal-dialog { max-width: 92%; }
+  
+}
+@media only screen and (max-width: 767px) {
+  .etik-modal-content .et_pb_text_2 {
+    padding: 0 2rem !important;
+  }
+  .etik-insc-form label, .etik-login-form label{
+    padding-bottom: 0px;
+  }
+  input.text, input.title, input[type="email"], input[type="password"], input[type="tel"], input[type="text"], select, textarea{
+    padding: 5px 1rem;
+  }
+  .etik-modal-dialog {
+    max-height: 96vh;
+    overflow: auto;
+  }
+  
+}

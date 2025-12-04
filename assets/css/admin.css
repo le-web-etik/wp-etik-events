@@ -1,0 +1,59 @@
+.datepicker{ width:200px; }
+.et-db #et-boc .et-l .et-fb-modules-list li.etk_events{ background-color: #cdffc3e5;}
+.et-db #et-boc .et-l .et-fb-modules-list ul > li::before.etk_events{ content: "e";}
+
+/*** META BOX ***/
+.etik-meta-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+.etik-meta-col {
+    flex: 1 1 280px; /* two columns where space allows, collapse on small screens */
+    min-width: 220px;
+}
+.etik-meta-field {
+    margin-bottom: 12px;
+}
+.etik-meta-field label { display:block; font-weight:600; margin-bottom:6px; }
+.etik-meta-field input[type="text"],
+.etik-meta-field input[type="number"],
+.etik-meta-field input[type="checkbox"] {
+    width: 100%;
+    box-sizing: border-box;
+}
+.etik-meta-field .small {
+    font-weight:400; color:#6b6b6b; font-size:13px;
+}
+
+/*** PAGE INSCRIPTION ***/
+/* loader spinner simple */
+.etik-spinner {
+  width: 28px;
+  height: 28px;
+  border: 4px solid rgba(0,0,0,0.08);
+  border-top-color: rgba(0,0,0,0.25);
+  border-radius: 50%;
+  animation: etik-spin 1s linear infinite;
+  display:inline-block;
+  vertical-align:middle;
+  margin-right:8px;
+}
+@keyframes etik-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* status badge default styling (if JS didn't inline color) */
+.etik-status-badge {
+  padding:4px 8px;
+  border-radius:12px;
+  color:#fff;
+  font-weight:600;
+  font-size:12px;
+  display:inline-block;
+}
+
+/* registrants container small spacing */
+.etik-registrants-container { padding:12px 0; }
+.etik-no-registrants { color:#666; padding:8px 0; }
+.etik-error { color:#b94a48; padding:8px 0; }
