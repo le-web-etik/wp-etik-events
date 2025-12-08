@@ -9,6 +9,8 @@ class Meta_Event {
         add_action('admin_print_scripts-post.php', [$this, 'enqueue_admin_assets']);
         add_filter('manage_etik_event_posts_columns', [$this, 'add_custom_columns']);
         add_action('manage_etik_event_posts_custom_column', [$this, 'columns_content_etik_event'], 10, 2);
+        add_filter( "manage_edit-etik_event_sortable_columns", [$this, 'lwe_sortable_columns'], 11 );
+        
     }
 
     public function enqueue_admin_assets() {
@@ -135,7 +137,8 @@ class Meta_Event {
 
     public function add_custom_columns($columns) {
         
-        $columns['date_event']     = 'Date événement';
+        $columns['lwe_date_event_strat']     = 'Date début';
+        $columns['lwe_date_event_end']     = 'Date fin';
         $columns['nb_resa']     = 'Inscription';
 
         return $columns;
@@ -147,12 +150,31 @@ class Meta_Event {
         $end = get_post_meta($post_ID, 'etik_end_date', true);
         $max_place = get_post_meta($post_ID, 'etik_max_place', true);
 
-        if ($column_name == 'date_event') {
-            echo $start ." / ". $end;
+        if ($column_name == 'lwe_date_event_strat') {
+            echo $start ;
+        }
+        if ($column_name == 'lwe_date_event_end') {
+            echo $end;
         }
         if ($column_name == 'nb_resa') {
             echo 0 . " / " . $max_place;
         }
     }
+
+    	/**
+	 * Make the SEO Score column sortable.
+	 *
+	 * @param array $columns Array of column names.
+	 *
+	 * @return array
+	 */
+	public function lwe_sortable_columns( $columns ) {
+		$columns['lwe_date_event_strat'] = 'lwe_date_event_strat';
+		$columns['lwe_date_event_end'] = 'lwe_date_event_end';
+
+		return $columns;
+	}
+
+
     
 }

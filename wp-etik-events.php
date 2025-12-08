@@ -22,6 +22,12 @@ if ( ! defined( 'WP_ETIK_PLUGIN_DIR' ) ) {
 require_once plugin_dir_path(__FILE__) . 'includes/ajax-handlers.php';
 require_once __DIR__ . '/src/Loader.php';
 
+// includes/admin/duplicate-event.php
+if ( file_exists( plugin_dir_path(__FILE__) . 'includes/admin/duplicate-event.php' ) ) {
+    require_once plugin_dir_path(__FILE__) . 'includes/admin/duplicate-event.php';
+}
+
+
 use WP_Etik\Loader;
 
 //define("WP_ETIK_HCAPTCHA_SECRET",     "");
