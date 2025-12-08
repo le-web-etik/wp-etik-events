@@ -40,6 +40,25 @@ class Activator {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql );
+
+        //---------------------------------------------------------------------
+        // Ensure additional columns exist (add only missing ones)
+        $cols_to_ensure = [
+            "ADD COLUMN {payment_session_id VARCHAR(255) NULL}",
+            "ADD COLUMN {amount INT NULL}",
+            "ADD COLUMN {reserved_at DATETIME NULL}",
+        ];
+
+        $col = 'payment_session_id';
+        $missing = [];
+        $exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table_name} LIKE %s", $col ) );
+        if ( empty( $exists ) ) {
+            if ( ! empty( $missing ) ) {
+                $alter_sql = "ALTER TABLE {$table_name} " . implode( ', ', $cols_to_ensure );
+                $wpdb->query( $alter_sql );
+            }
+        }
+        
     }
 
     public static function deactivate() {
@@ -47,8 +66,8 @@ class Activator {
         flush_rewrite_rules();
 
         // Remove table on deactivate if desired
-        global $wpdb;
-        $table = $wpdb->prefix . 'etik_inscriptions';
-        $wpdb->query( "DROP TABLE IF EXISTS {$table}" );
+        //global $wpdb;
+        //$table = $wpdb->prefix . 'etik_inscriptions';
+        //$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
     }
 }

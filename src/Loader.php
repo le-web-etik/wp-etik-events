@@ -50,10 +50,17 @@ class Loader {
         $inscriptions->init();
 
         if ( is_admin() && current_user_can( 'manage_options' ) ) {
+
             require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/admin-registrations.php';
             $registrations = new \WP_Etik\Admin\Registrations_Admin();
             $registrations->init();
+
+            // Initialise la page de réglages Stripe (la classe sera autoloadée)
+            if ( class_exists( __NAMESPACE__ . '\\Admin\\Stripe_Settings' ) ) {
+                \WP_Etik\Admin\Stripe_Settings::init();
+            }
         }
+
 
     }
 

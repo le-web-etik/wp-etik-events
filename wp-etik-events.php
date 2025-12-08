@@ -2,7 +2,7 @@
 /**
  * Plugin Name:     WP Etik Events
  * Description:     Gestion d'événements, inscriptions front, et module Divi pour affichage.
- * Version:         1.0.0
+ * Version:         1.0.1
  * Author:          Le Web Etik
  * Author URI:      https://lewebetik.fr
  * Text Domain:     wp-etik-events
@@ -27,6 +27,8 @@ if ( file_exists( plugin_dir_path(__FILE__) . 'includes/admin/duplicate-event.ph
     require_once plugin_dir_path(__FILE__) . 'includes/admin/duplicate-event.php';
 }
 
+// includes/admin/class-stripe-settings.php
+// require_once plugin_dir_path(__FILE__) . 'includes/admin/class-stripe-settings.php';
 
 use WP_Etik\Loader;
 
