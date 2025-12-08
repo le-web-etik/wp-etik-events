@@ -12,9 +12,9 @@ class Frontend_Inscription {
         $post_id = intval($atts['id']);
         if (!$post_id) return '';
 
-        $start = get_post_meta($post_id, '_etik_start_date', true);
-        $end = get_post_meta($post_id, '_etik_end_date', true);
-        $price = get_post_meta($post_id, '_etik_price', true);
+        $start = get_post_meta($post_id, 'etik_start_date', true);
+        $end = get_post_meta($post_id, 'etik_end_date', true);
+        $price = get_post_meta($post_id, 'etik_price', true);
         $discount = get_post_meta($post_id, '_etik_discount', true);
         $payment_required = get_post_meta($post_id, '_etik_payment_required', true);
 

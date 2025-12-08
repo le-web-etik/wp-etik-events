@@ -402,7 +402,7 @@ function wp_etik_send_confirmation_email_service_style( array $args ) {
     // Récupérer la date de l'événement si fournie dans $args ou via meta (fallback)
     $event_date = '';
     if ( ! empty( $event_id ) ) {
-        $meta_date = get_post_meta( $event_id, '_etik_start_date', true );
+        $meta_date = get_post_meta( $event_id, 'etik_start_date', true );
         if ( $meta_date ) {
             $event_date = sanitize_text_field( $meta_date );
         }

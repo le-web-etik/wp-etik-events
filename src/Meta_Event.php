@@ -22,13 +22,14 @@ class Meta_Event {
 
     public function meta_box_html($post) {
         // Récupération des metas existantes
-        $start = get_post_meta($post->ID, '_etik_start_date', true);
-        $end = get_post_meta($post->ID, '_etik_end_date', true);
-        $price = get_post_meta($post->ID, '_etik_price', true);
+        $start = get_post_meta($post->ID, 'etik_start_date', true);
+        $end = get_post_meta($post->ID, 'etik_end_date', true);
+        $price = get_post_meta($post->ID, 'etik_price', true);
+        $lieux  = get_post_meta($post->ID, 'etik_lieux', true);
         $discount = get_post_meta($post->ID, '_etik_discount', true);
         $payment_required = get_post_meta($post->ID, '_etik_payment_required', true);
-        $min_place = get_post_meta($post->ID, '_etik_min_place', true);
-        $max_place = get_post_meta($post->ID, '_etik_max_place', true);
+        $min_place = get_post_meta($post->ID, 'etik_min_place', true);
+        $max_place = get_post_meta($post->ID, 'etik_max_place', true);
 
         wp_nonce_field('etik_save_meta', 'etik_meta_nonce');
         ?>
@@ -44,6 +45,11 @@ class Meta_Event {
                 <div class="etik-meta-field">
                     <label><?php _e('Prix','wp-etik-events'); ?></label>
                     <input type="number" step="0.01" name="etik_price" value="<?php echo esc_attr($price); ?>" />
+                </div>
+
+                <div class="etik-meta-field">
+                    <label><?php _e('Lieux','wp-etik-events'); ?></label>
+                    <input type="text" name="etik_lieux" value="<?php echo esc_attr($lieux); ?>" />
                 </div>
 
                 <div class="etik-meta-field">
@@ -87,19 +93,22 @@ class Meta_Event {
 
         // sanitize & save
         $start_val = sanitize_text_field($_POST['etik_start_date'] ?? '');
-        update_post_meta($post_id, '_etik_start_date', $start_val);
+        update_post_meta($post_id, 'etik_start_date', $start_val);
 
         $end_val = sanitize_text_field($_POST['etik_end_date'] ?? '');
-        update_post_meta($post_id, '_etik_end_date', $end_val);
+        update_post_meta($post_id, 'etik_end_date', $end_val);
 
         $price_val = isset($_POST['etik_price']) ? floatval($_POST['etik_price']) : 0;
-        update_post_meta($post_id, '_etik_price', $price_val);
+        update_post_meta($post_id, 'etik_price', $price_val);
 
         $discount_val = isset($_POST['etik_discount']) ? floatval($_POST['etik_discount']) : 0;
         update_post_meta($post_id, '_etik_discount', $discount_val);
 
         $payment_required = isset($_POST['etik_payment_required']) ? '1' : '0';
         update_post_meta($post_id, '_etik_payment_required', $payment_required);
+
+        $lieux_val = sanitize_text_field($_POST['etik_lieux'] ?? '');
+        update_post_meta($post_id, 'etik_lieux', $lieux_val);
 
         // new fields: min/max places (nullable integers)
         $min_place = isset($_POST['etik_min_place']) && $_POST['etik_min_place'] !== '' ? intval($_POST['etik_min_place']) : '';
@@ -112,15 +121,15 @@ class Meta_Event {
         }
 
         if ( $min_place === '' ) {
-            delete_post_meta( $post_id, '_etik_min_place' );
+            delete_post_meta( $post_id, 'etik_min_place' );
         } else {
-            update_post_meta( $post_id, '_etik_min_place', $min_place );
+            update_post_meta( $post_id, 'etik_min_place', $min_place );
         }
 
         if ( $max_place === '' ) {
-            delete_post_meta( $post_id, '_etik_max_place' );
+            delete_post_meta( $post_id, 'etik_max_place' );
         } else {
-            update_post_meta( $post_id, '_etik_max_place', $max_place );
+            update_post_meta( $post_id, 'etik_max_place', $max_place );
         }
     }
 
@@ -134,9 +143,9 @@ class Meta_Event {
 
     public function columns_content_etik_event($column_name, $post_ID){
 
-        $start = get_post_meta($post_ID, '_etik_start_date', true);
-        $end = get_post_meta($post_ID, '_etik_end_date', true);
-        $max_place = get_post_meta($post_ID, '_etik_max_place', true);
+        $start = get_post_meta($post_ID, 'etik_start_date', true);
+        $end = get_post_meta($post_ID, 'etik_end_date', true);
+        $max_place = get_post_meta($post_ID, 'etik_max_place', true);
 
         if ($column_name == 'date_event') {
             echo $start ." / ". $end;

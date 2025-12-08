@@ -169,7 +169,7 @@ class Divi_Module extends \ET_Builder_Module {
             'post_type' => 'etik_event',
             'posts_per_page' => $posts_number,
             'order'     => 'ASC',
-            'meta_key' => '_etik_start_date',
+            'meta_key' => 'etik_start_date',
             'orderby'   => 'meta_value',
         ]);*/
 
@@ -179,11 +179,11 @@ class Divi_Module extends \ET_Builder_Module {
             'post_type'      => 'etik_event',
             'posts_per_page' => $posts_number,
             'order'          => 'ASC',
-            'meta_key'       => '_etik_start_date',
+            'meta_key'       => 'etik_start_date',
             'orderby'        => 'meta_value',
             'meta_query'     => [
                 [
-                    'key'     => '_etik_start_date',
+                    'key'     => 'etik_start_date',
                     'value'   => $today,
                     'compare' => '>',
                     'type'    => 'DATE',
@@ -210,8 +210,8 @@ class Divi_Module extends \ET_Builder_Module {
             $title = get_the_title();
             $excerpt = get_the_excerpt();
             $the_content = get_the_content();
-            $start = get_post_meta($id, '_etik_start_date', true);
-            $price = get_post_meta($id, '_etik_price', true);
+            $start = get_post_meta($id, 'etik_start_date', true);
+            $price = get_post_meta($id, 'etik_price', true);
 
             $output .= '<div class="etik-event etik-bis">';
 

@@ -66,19 +66,19 @@ class Registrations_Admin {
         $paged = isset( $_GET['paged'] ) ? max( 1, intval( $_GET['paged'] ) ) : 1;
         $per_page = 20;
 
-        // build meta_query depending on how _etik_start_date is stored (assume DATETIME Y-m-d H:i:s)
+        // build meta_query depending on how etik_start_date is stored (assume DATETIME Y-m-d H:i:s)
         $now = current_time( 'mysql' );
         $meta_query = [];
         if ( $view === 'upcoming' ) {
             $meta_query[] = [
-                'key'     => '_etik_start_date',
+                'key'     => 'etik_start_date',
                 'value'   => $now,
                 'compare' => '>=',
                 'type'    => 'DATETIME',
             ];
         } elseif ( $view === 'past' ) {
             $meta_query[] = [
-                'key'     => '_etik_start_date',
+                'key'     => 'etik_start_date',
                 'value'   => $now,
                 'compare' => '<',
                 'type'    => 'DATETIME',
@@ -89,7 +89,7 @@ class Registrations_Admin {
             'post_type'      => 'etik_event',
             'posts_per_page' => $per_page,
             'paged'          => $paged,
-            'meta_key'       => '_etik_start_date',
+            'meta_key'       => 'etik_start_date',
             'orderby'        => 'meta_value',
             'order'          => 'ASC',
         ];
@@ -133,8 +133,8 @@ class Registrations_Admin {
                 if ( $events->have_posts() ) :
                     while ( $events->have_posts() ) : $events->the_post();
                         $post_id = get_the_ID();
-                        $start = get_post_meta( $post_id, '_etik_start_date', true );
-                        $max = get_post_meta( $post_id, '_etik_max_place', true ); // peut être vide
+                        $start = get_post_meta( $post_id, 'etik_start_date', true );
+                        $max = get_post_meta( $post_id, 'etik_max_place', true ); // peut être vide
 
                         global $wpdb;
                         $table = $wpdb->prefix . 'etik_inscriptions';
