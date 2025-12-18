@@ -22,65 +22,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'wp_ajax_nopriv_wp_etik_handle_inscription', __NAMESPACE__ . '\\handle_inscription' );
 add_action( 'wp_ajax_wp_etik_handle_inscription', __NAMESPACE__ . '\\handle_inscription' );
 
-add_action( 'wp_ajax_nopriv_wp_etik_handle_login', __NAMESPACE__ . '\\handle_login' );
-add_action( 'wp_ajax_wp_etik_handle_login', __NAMESPACE__ . '\\handle_login' );
+//add_action( 'wp_ajax_nopriv_wp_etik_handle_login', __NAMESPACE__ . '\\handle_login' );
+//add_action( 'wp_ajax_wp_etik_handle_login', __NAMESPACE__ . '\\handle_login' );
 
 add_action( 'init', __NAMESPACE__ . '\\maybe_process_confirmation' );
 
-/**
- * Helper: send JSON error and exit
- */
-function json_error( $message, $extra = [] ) {
-    $payload = array_merge( [ 'message' => $message ], (array) $extra );
-    wp_send_json_error( $payload );
-}
+add_action( 'wp_ajax_nopriv_lwe_create_checkout', 'lwe_create_checkout' );
+add_action( 'wp_ajax_lwe_create_checkout', 'lwe_create_checkout' );
 
-/**
- * Helper: send JSON success and exit
- */
-function json_success( $data = [] ) {
-    wp_send_json_success( $data );
-}
+require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/ajax-handlers-functions.php';
 
-/**
- * Verify hCaptcha server-side if secret configured.
- * Returns true if OK, or false on failure (and optionally sets $error_msg).
- */
-function verify_hcaptcha( $token, &$error_msg = '' ) {
-    $secret = defined( 'WP_ETIK_HCAPTCHA_SECRET' ) ? WP_ETIK_HCAPTCHA_SECRET : get_option( 'wp_etik_hcaptcha_secret', '' );
-    if ( empty( $secret ) ) {
-        return true; // not configured -> skip
-    }
-
-    if ( empty( $token ) ) {
-        $error_msg = 'Captcha manquant.';
-        return false;
-    }
-
-    $resp = wp_remote_post( 'https://hcaptcha.com/siteverify', [
-        'timeout' => 10,
-        'body'    => [
-            'secret'   => $secret,
-            'response' => $token,
-            'remoteip' => $_SERVER['REMOTE_ADDR'] ?? '',
-        ],
-    ] );
-
-    if ( is_wp_error( $resp ) ) {
-        $error_msg = 'Erreur vérification captcha.';
-        error_log( '[WP_ETIK] hCaptcha request error: ' . $resp->get_error_message() );
-        return false;
-    }
-
-    $body = wp_remote_retrieve_body( $resp );
-    $data = json_decode( $body, true );
-    if ( empty( $data ) || empty( $data['success'] ) ) {
-        $error_msg = 'Échec du captcha.';
-        return false;
-    }
-
-    return true;
-}
 
 /**
  * Handler inscription
@@ -325,16 +276,6 @@ function maybe_process_confirmation() {
         $expires_ts = strtotime( $row['token_expires'] );
     }
 
-    print_r("expires_ts <br>");
-    print_r($expires_ts . " -- ");
-    $expires_ts_sql = date( 'Y-m-d H:i:s', $expires_ts );
-    print_r($expires_ts_sql);
-    print_r("--------------------------------------<br>");
-
-    print_r("now_ts <br>");
-    print_r($now_ts . " -- ");
-    $now_ts_sql = date( 'Y-m-d H:i:s', $now_ts );
-    print_r($now_ts_sql);
     if ( $expires_ts && $expires_ts < $now_ts ) {
         wp_die( 'Le lien a expiré.' );
     }
@@ -364,164 +305,201 @@ function maybe_process_confirmation() {
 }
 
 
-
-
 /**
- * Envoie un email de confirmation stylé, inspiré d'une page service "création site web"
+ * AJAX handler : créer une inscription + Checkout Session Stripe si place disponible.
  *
- * Attendu dans $args :
- *  - int    $inscription_id
- *  - string $token
- *  - string $first_name
- *  - string $event_title
- *  - string $recipient_email
- *  - string $from_name (optionnel)
- *  - string $from_email (optionnel)
- *  - string $logo_url (optionnel)
- *  - string $hero_url (optionnel)
+ * Reçoit POST:
+ *  - event_id (int)
+ *  - email, first_name, last_name, phone (optionnel)
+ *
+ * Retour JSON:
+ *  - success: true/false
+ *  - data: { status: 'pending'|'waitlist', inscription_id: int, checkout_url?: string }
  */
-function wp_etik_send_confirmation_email_service_style( array $args ) {
-    // required
-    $inscription_id  = (int) ( $args['inscription_id'] ?? 0 );
-    $event_id        = (int) ( $args['event_id'] ?? 0 );
-    $token           = $args['token'] ?? '';
-    $first_name      = sanitize_text_field( $args['first_name'] ?? '' );
-    $event_title     = sanitize_text_field( $args['event_title'] ?? '' );
-    $recipient_email = sanitize_email( $args['recipient_email'] ?? '' );
-
-    // defaults / optionals
-    $from_name = sanitize_text_field( $args['from_name'] ?? get_bloginfo( 'name' ) );
-    $from_mail = sanitize_email( $args['from_email'] ?? get_bloginfo( 'admin_email' ) );
-    $logo_url  = esc_url_raw( $args['logo_url'] ?? 'https://lewebetik.fr/wp-content/uploads/logo.png' );
-    $hero_url  = esc_url_raw( $args['hero_url'] ?? 'https://lewebetik.fr/wp-content/uploads/hero_service.jpg' );
-
-    if ( ! $inscription_id || empty( $token ) || ! is_email( $recipient_email ) ) {
-        return new WP_Error( 'invalid_args', 'Paramètres manquants ou email invalide' );
+function lwe_create_checkout() {
+    // nonce
+    if ( empty( $_POST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ), 'lwe_nonce' ) ) {
+        wp_send_json_error( [ 'code' => 'invalid_nonce' ], 400 );
     }
 
-    // Récupérer la date de l'événement si fournie dans $args ou via meta (fallback)
-    $event_date = '';
-    if ( ! empty( $event_id ) ) {
-        $meta_date = get_post_meta( $event_id, 'etik_start_date', true );
-        if ( $meta_date ) {
-            $event_date = sanitize_text_field( $meta_date );
+    global $wpdb;
+
+    $event_id = isset( $_POST['event_id'] ) ? intval( $_POST['event_id'] ) : 0;
+    if ( $event_id <= 0 ) {
+        wp_send_json_error( [ 'code' => 'missing_event' ], 400 );
+    }
+
+    // sanitize inputs
+    $email = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+    $first_name = isset( $_POST['first_name'] ) ? sanitize_text_field( wp_unslash( $_POST['first_name'] ) ) : '';
+    $last_name = isset( $_POST['last_name'] ) ? sanitize_text_field( wp_unslash( $_POST['last_name'] ) ) : '';
+    $phone = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+
+    // table
+    $table = $wpdb->prefix . 'etik_inscriptions';
+
+    // capacity from CPT meta
+    $max_place = intval( get_post_meta( $event_id, 'etik_max_place', true ) );
+    if ( $max_place <= 0 ) {
+        $max_place = PHP_INT_MAX;
+    }
+
+    // count confirmed inscriptions for this event
+    $confirmed_count = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status = %s",
+        $event_id, 'confirmed'
+    ) );
+
+    // if full -> create waitlist entry
+    if ( $confirmed_count >= $max_place ) {
+        $inserted = $wpdb->insert(
+            $table,
+            [
+                'event_id'      => $event_id,
+                'user_id'       => 0,
+                'email'         => $email,
+                'first_name'    => $first_name,
+                'last_name'     => $last_name,
+                'phone'         => $phone,
+                'status'        => 'waitlist',
+                'registered_at' => current_time( 'mysql' ),
+            ],
+            [ '%d', '%d', '%s', '%s', '%s', '%s', '%s' ]
+        );
+
+        if ( $inserted ) {
+            $ins_id = (int) $wpdb->insert_id;
+            wp_send_json_success( [
+                'status' => 'waitlist',
+                'inscription_id' => $ins_id,
+                'message' => __( 'L\'événement est complet. Vous êtes inscrit sur la liste d\'attente.', 'wp-etik-events' )
+            ] );
+        } else {
+            wp_send_json_error( [ 'code' => 'db_error' ], 500 );
         }
     }
 
-    // confirmation URL (encode token)
-    $confirmation_url = add_query_arg( [
-        'wp_etik_action' => 'confirm_inscription',
-        'id'             => $inscription_id,
-        'token'          => rawurlencode( $token ),
-    ], home_url( '/' ) );
+    // place available -> create pending inscription
+    $amount = 10000; // 100 € en cents (modifier si nécessaire)
+    $now = current_time( 'mysql' );
 
-    // color palette inspired by a service page (contrast, CTA)
-    $brand_light   = '#f0fbf7';
-    $brand_primary = '#2aa78a';
-    $brand_accent  = '#ff9f1c';
-    $text_dark     = '#102027';
-    $muted         = '#5f6a6a';
-    $card_radius   = '12px';
+    $inserted = $wpdb->insert(
+        $table,
+        [
+            'event_id'      => $event_id,
+            'user_id'       => 0,
+            'email'         => $email,
+            'first_name'    => $first_name,
+            'last_name'     => $last_name,
+            'phone'         => $phone,
+            'status'        => 'pending',
+            'amount'        => $amount,
+            'reserved_at'   => $now,
+            'registered_at' => $now,
+        ],
+        [ '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s' ]
+    );
 
-    // HTML content (inline styles) — inclut la date si disponible
-    $html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>';
-    $html .= '<body style="margin:0;padding:28px;background:' . esc_attr( $brand_light ) . ';font-family:Arial,Helvetica,sans-serif;color:' . esc_attr( $text_dark ) . ';">';
-    $html .= '<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td align="center">';
-    $html .= '<table width="680" cellpadding="0" cellspacing="0" role="presentation" style="background:#fff;border-radius:' . $card_radius . ';overflow:hidden;box-shadow:0 10px 30px rgba(16,32,39,0.06)">';
-    // header
-    $html .= '<tr><td style="padding:18px 22px;background:#fff;">';
-    $html .= '<table width="100%"><tr><td><a href="' . esc_url( site_url() ) . '">';
-    $html .= '<img src="' . esc_url( $logo_url ) . '" alt="" width="100" style="display:block;border:0;"></a></td>';
-    $html .= '<td align="right" style="color:' . esc_attr( $muted ) . '"><a href="' . esc_url( site_url() ) . '" style="text-decoration: none;">';
-    $html .= '<span style="font-size:18px;font-weight:700;">' . esc_html( $from_name ) . '</span></a></td></tr></table></td></tr>';
-    // hero
-    $html .= '<tr><td style="padding:0;"><img src="' . esc_url( $hero_url ) . '" alt="" width="680" style="display:block;width:100%;height:auto;"></td></tr>';
-    // main
-    $html .= '<tr><td style="padding:22px 28px;">';
-    $html .= '<h2 style="margin:0 0 8px;font-size:20px;color:' . esc_attr( $text_dark ) . '">Confirmez votre inscription</h2>';
-    $html .= '<p style="margin:0 0 16px;color:' . esc_attr( $muted ) . ';font-size:14px;line-height:1.5;">Bonjour <strong>' . esc_html( $first_name ) . '</strong>, merci pour votre intérêt pour <strong>' . esc_html( $event_title ) . '</strong>.';
-    if ( $event_date ) {
-        $html .= ' La session est prévue le <strong>' . esc_html( $event_date ) . '</strong>.';
-    }
-    $html .= ' Pour finaliser votre inscription, cliquez sur le bouton ci‑dessous.</p>';
-
-    // CTA
-    $html .= '<p style="margin:18px 0;"><a href="' . esc_url( $confirmation_url ) . '" target="_blank" style="background:' . esc_attr( $brand_primary ) . ';color:#fff;padding:14px 22px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;">Confirmer mon inscription</a></p>';
-
-    // features block
-    $html .= '<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:18px;">';
-    $html .= '<tr><td style="width:36%;vertical-align:top;padding-right:12px;"><div style="padding:12px;border-radius:10px;background:linear-gradient(180deg,rgba(42,167,138,0.06),rgba(255,159,28,0.02));font-weight:700;color:' . esc_attr( $brand_primary ) . '">Je vous re contact trés rapidement.</div></td>';
-    $html .= '<td style="vertical-align:top;color:' . esc_attr( $muted ) . ';font-size:13px;">';
-    $html .= '<ul style="margin:8px 0 0 16px;padding:0;color:' . esc_attr( $muted ) . ';">';
-    $html .= '<li>Préparer vos textes et images</li>';
-    $html .= '</ul></td></tr></table>';
-
-    //  expiry
-    $html .= '<p style="margin:18px 0 0;color:' . esc_attr( $muted ) . ';font-size:13px;">Le lien expirera dans <strong>24 heures</strong>. Si le bouton ne fonctionne pas, copiez-collez ce lien :</p>';
-    $html .= '<p style="word-break:break-all;color:' . esc_attr( $brand_accent ) . ';"><a href="' . esc_url( $confirmation_url ) . '" style="color:' . esc_attr( $brand_accent ) . ';">' . esc_html( $confirmation_url ) . '</a></p>';
-    $html .= '</td></tr>';
-
-    // footer
-    $html .= '<tr><td style="padding:18px 28px;background:' . esc_attr( $brand_light ) . ';font-size:13px;color:' . esc_attr( $muted ) . ';">';
-    $html .= '<table width="100%"><tr><td>Vous pouvez nous contacter à <a href="mailto:' . esc_attr( $from_mail ) . '" style="color:' . esc_attr( $brand_primary ) . ';">' . esc_html( $from_mail ) . '</a></td>';
-    $html .= '<td align="right"><a href="' . esc_url( home_url( '/contact/' ) ) . '" style="color:' . esc_attr( $brand_primary ) . '">Contact</a></td></tr></table></td></tr>';
-    $html .= '</table></td></tr></table></body></html>';
-
-    // plain text fallback (inclut date si dispo)
-    $plain = "Bonjour " . $first_name . ",\n\n";
-    $plain .= "Merci pour votre inscription à \"" . $event_title . "\".\n";
-    if ( $event_date ) {
-        $plain .= "Date de la session : " . $event_date . "\n";
-    }
-    $plain .= "Pour confirmer votre inscription (valable 24h) :\n" . $confirmation_url . "\n\n";
-    $plain .= "Vous recevrez ensuite les informations pratiques.\n\n";
-    $plain .= "Contact : " . $from_mail . "\n" . home_url();
-
-    // headers
-    $headers = [];
-    $headers[] = 'From: ' . wp_specialchars_decode( $from_name ) . ' <' . sanitize_email( $from_mail ) . '>';
-    $headers[] = 'Content-Type: text/html; charset=UTF-8';
-
-    // subject
-    $subject = 'Confirmez votre inscription — ' . wp_strip_all_tags( $event_title );
-
-    // send participant email (HTML)
-    $sent_to_participant = wp_mail( $recipient_email, $subject, $html, $headers );
-
-    // fallback to plain for participant if HTML failed
-    if ( ! $sent_to_participant ) {
-        $sent_to_participant = wp_mail( $recipient_email, $subject, $plain, [ 'From: ' . wp_specialchars_decode( $from_name ) . ' <' . sanitize_email( $from_mail ) . '>' ] );
+    if ( ! $inserted ) {
+        wp_send_json_error( [ 'code' => 'db_error' ], 500 );
     }
 
-    // ---------------------------------------------------------------------------
-    // --- Notification admin (simple email)
-    $admin_to = 'reservation@lewebetik.fr';
-    $admin_subject = 'Nouvelle réservation — ' . wp_strip_all_tags( $event_title );
-    $admin_lines = [];
-    $admin_lines[] = 'Nouvelle réservation enregistrée';
-    $admin_lines[] = 'Inscription ID: ' . $inscription_id;
-    $admin_lines[] = 'Événement: ' . $event_title;
-    if ( ! empty( $event_date ) ) {
-        $admin_lines[] = 'Date de l\'événement: ' . $event_date;
+    $ins_id = (int) $wpdb->insert_id;
+
+    // Récupérer clés Stripe via la classe admin (adapter le nom si nécessaire)
+    if ( ! class_exists( '\\WP_Etik\\Admin\\Stripe_Settings_Admin' ) ) {
+        // pas de settings class : informer et garder la réservation pending
+        wp_send_json_success( [
+            'status' => 'pending',
+            'inscription_id' => $ins_id,
+            'message' => __( 'Réservation enregistrée. Le paiement Stripe n\'est pas configuré.', 'wp-etik-events' )
+        ] );
     }
-    $admin_lines[] = 'Nom: ' . $first_name;
-    $admin_lines[] = 'Email: ' . $recipient_email;
-    if ( ! empty( $args['phone'] ) ) {
-        $admin_lines[] = 'Téléphone: ' . sanitize_text_field( $args['phone'] );
+
+    $keys = \WP_Etik\Admin\Stripe_Settings::get_keys();
+    $secret = $keys['secret'] ?? '';
+    if ( empty( $secret ) ) {
+        wp_send_json_success( [
+            'status' => 'pending',
+            'inscription_id' => $ins_id,
+            'message' => __( 'Réservation enregistrée. Le paiement Stripe n\'est pas configuré.', 'wp-etik-events' )
+        ] );
     }
-    $admin_message = implode( "\n", $admin_lines );
 
-    // en-têtes simples pour admin (plain text)
-    $admin_headers = [ 'From: ' . wp_specialchars_decode( $from_name ) . ' <' . sanitize_email( $from_mail ) . '>' ];
+    // success / cancel URLs (customize as needed)
+    $success_url = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'success' ], home_url( '/' ) );
+    $cancel_url  = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'cancel' ], home_url( '/' ) );
 
-    // envoi admin
-    $sent_to_admin = wp_mail( $admin_to, $admin_subject, $admin_message, $admin_headers );
-
-    // retourne tableau avec le statut des deux envois
-    return [
-        'participant_sent' => (bool) $sent_to_participant,
-        'admin_sent'       => (bool) $sent_to_admin,
+    $body = [
+        'payment_method_types[]' => 'card',
+        'mode' => 'payment',
+        'line_items[0][price_data][currency]' => 'eur',
+        'line_items[0][price_data][product_data][name]' => 'Acompte réservation',
+        'line_items[0][price_data][unit_amount]' => $amount,
+        'line_items[0][quantity]' => 1,
+        'metadata[inscription_id]' => (string) $ins_id,
+        'metadata[event_id]' => (string) $event_id,
+        'success_url' => $success_url,
+        'cancel_url' => $cancel_url,
     ];
-}
 
+    $args = [
+        'body' => $body,
+        'headers' => [
+            'Authorization' => 'Bearer ' . $secret,
+            'Content-Type'  => 'application/x-www-form-urlencoded',
+        ],
+        'timeout' => 20,
+    ];
+
+    $response = wp_remote_post( 'https://api.stripe.com/v1/checkout/sessions', $args );
+
+    if ( is_wp_error( $response ) ) {
+        // erreur réseau : laisser pending et informer
+        // optionnel : logger en debug
+        if ( defined('WP_DEBUG') && WP_DEBUG ) {
+            error_log( 'Stripe request error: ' . $response->get_error_message() );
+        }
+        wp_send_json_error( [ 'code' => 'stripe_network_error' ], 502 );
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+    $resp_body = wp_remote_retrieve_body( $response );
+    $data = json_decode( $resp_body, true );
+
+    if ( $code !== 200 && $code !== 201 ) {
+        // erreur Stripe : annuler la réservation pending ou la laisser selon ta politique
+        if ( defined('WP_DEBUG') && WP_DEBUG ) {
+            error_log( 'Stripe API error: ' . print_r( $data, true ) );
+        }
+        // garder pending mais informer le client
+        wp_send_json_error( [ 'code' => 'stripe_api_error', 'message' => $data['error']['message'] ?? 'Stripe error' ], 502 );
+    }
+
+    // récupérer id et url de la session
+    $session_id = $data['id'] ?? '';
+    $checkout_url = $data['url'] ?? '';
+
+    if ( $session_id ) {
+        // stocker payment_session_id
+        $wpdb->update(
+            $table,
+            [ 'payment_session_id' => $session_id ],
+            [ 'id' => $ins_id ],
+            [ '%s' ],
+            [ '%d' ]
+        );
+    }
+
+    if ( ! empty( $checkout_url ) ) {
+        wp_send_json_success( [
+            'status' => 'pending',
+            'inscription_id' => $ins_id,
+            'checkout_url' => $checkout_url
+        ] );
+    }
+
+    // fallback
+    wp_send_json_error( [ 'code' => 'stripe_no_url' ], 500 );
+}
 
