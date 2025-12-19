@@ -8,8 +8,8 @@ defined('ABSPATH') || exit;
 class Service {
     public static function keys(): array {
         // utilise la classe admin Stripe_Settings_Admin si présente
-        if ( class_exists('\\WP_Etik\\Admin\\Stripe_Settings_Admin') ) {
-            return \WP_Etik\Admin\Stripe_Settings_Admin::get_keys();
+        if ( class_exists('\\WP_Etik\\Admin\\Stripe_Settings') ) {
+            return \WP_Etik\Admin\Stripe_Settings::get_keys();
         }
         return ['publishable'=>'','secret'=>'','webhook'=>''];
     }

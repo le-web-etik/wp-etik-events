@@ -1,4 +1,5 @@
 <?php
+// fichier : wp-etik-events/includes/admin/Stripe_Setting.php
 namespace WP_Etik\Admin;
 
 if ( ! defined( 'ABSPATH' ) ) {

@@ -30,7 +30,7 @@ add_action( 'init', __NAMESPACE__ . '\\maybe_process_confirmation' );
 add_action( 'wp_ajax_nopriv_lwe_create_checkout', 'lwe_create_checkout' );
 add_action( 'wp_ajax_lwe_create_checkout', 'lwe_create_checkout' );
 
-require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/ajax-handlers-functions.php';
+require_once WP_ETIK_PLUGIN_DIR . 'includes/ajax-handlers-functions.php';
 
 
 /**
@@ -407,7 +407,7 @@ function lwe_create_checkout() {
     $ins_id = (int) $wpdb->insert_id;
 
     // Récupérer clés Stripe via la classe admin (adapter le nom si nécessaire)
-    if ( ! class_exists( '\\WP_Etik\\Admin\\Stripe_Settings_Admin' ) ) {
+    if ( ! class_exists( '\\WP_Etik\\Admin\\Stripe_Settings' ) ) {
         // pas de settings class : informer et garder la réservation pending
         wp_send_json_success( [
             'status' => 'pending',

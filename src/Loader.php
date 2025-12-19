@@ -1,21 +1,6 @@
 <?php
 namespace WP_Etik;
-
-// s'assurer que le fichier du module est inclus tôt
-
-// attendre le hook Divi
-/*add_action('et_builder_ready', function(){
-    // double-check
-    if ( class_exists('ET_Builder_Module') && class_exists('WP_Etik\\Divi_Module') ) {
-        // instantiate module
-        new \WP_Etik\Divi_Module();
-    } else {
-        // fallback: log pour debug
-        error_log('WP Etik: Divi module not loaded - ET_Builder_Module or WP_Etik\\Divi_Module missing');
-    }
-});*/
-
-
+// fichier : wp-etik-events/src/Loader.php
 
 class Loader {
     public function run() {
