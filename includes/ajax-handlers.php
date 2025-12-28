@@ -30,6 +30,9 @@ add_action( 'init', __NAMESPACE__ . '\\maybe_process_confirmation' );
 add_action( 'wp_ajax_nopriv_lwe_create_checkout', 'lwe_create_checkout' );
 add_action( 'wp_ajax_lwe_create_checkout', 'lwe_create_checkout' );
 
+add_action( 'wp_ajax_lwe_test_webhook', 'lwe_test_webhook' );
+
+
 require_once WP_ETIK_PLUGIN_DIR . 'includes/ajax-handlers-functions.php';
 
 
@@ -503,3 +506,65 @@ function lwe_create_checkout() {
     wp_send_json_error( [ 'code' => 'stripe_no_url' ], 500 );
 }
 
+/**
+ * AJAX Handler - Test configuration des webhooks
+ */
+function lwe_test_webhook() {
+if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( [ 'message' => 'Access denied' ], 403 );
+    }
+
+    // Vérifier nonce si envoyé
+    $nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+    if ( ! wp_verify_nonce( $nonce, 'lwe_test_webhook_nonce' ) ) {
+        wp_send_json_error( [ 'message' => 'Invalid nonce' ], 400 );
+    }
+
+    $gateway = isset( $_POST['gateway'] ) ? sanitize_text_field( wp_unslash( $_POST['gateway'] ) ) : '';
+    if ( ! in_array( $gateway, [ 'stripe', 'mollie' ], true ) ) {
+        wp_send_json_error( [ 'message' => 'Unknown gateway' ], 400 );
+    }
+
+    // Récupérer les clés via Payments_Settings
+    if ( ! class_exists( '\\WP_Etik\\Admin\\Payments_Settings' ) ) {
+        wp_send_json_error( [ 'message' => 'Payments_Settings not available' ], 500 );
+    }
+
+    try {
+        $ps = new \WP_Etik\Admin\Payments_Settings();
+        $all = $ps->get_all_keys();
+    } catch ( \Throwable $e ) {
+        wp_send_json_error( [ 'message' => 'Failed to get keys: ' . $e->getMessage() ], 500 );
+    }
+
+    if ( $gateway === 'stripe' ) {
+        $keys = $all['stripe'] ?? [];
+        $secret = $keys['secret'] ?? '';
+        $expected_url = rest_url( 'lwe/v1/stripe-webhook' );
+
+        if ( ! class_exists( '\\WP_Etik\\Admin\\Payments\\Webhook_Checker' ) ) {
+            wp_send_json_error( [ 'message' => 'Webhook_Checker missing' ], 500 );
+        }
+
+        $res = \WP_Etik\Admin\Payments\Webhook_Checker::check_stripe_webhook( $secret, $expected_url );
+        // Optionnel : stocker le résultat
+        update_option( 'lwe_stripe_webhook_check', array_merge( $res, [ 'time' => time() ] ) );
+        wp_send_json_success( $res );
+    }
+
+    if ( $gateway === 'mollie' ) {
+        $keys = $all['mollie'] ?? [];
+        $apikey = $keys['apikey'] ?? '';
+        $expected_url = rest_url( 'lwe/v1/mollie-webhook' );
+
+        if ( ! class_exists( '\\WP_Etik\\Admin\\Payments\\Webhook_Checker' ) ) {
+            wp_send_json_error( [ 'message' => 'Webhook_Checker missing' ], 500 );
+        }
+
+        $res = \WP_Etik\Admin\Payments\Webhook_Checker::check_mollie_webhook( $apikey, $expected_url );
+        update_option( 'lwe_mollie_webhook_check', array_merge( $res, [ 'time' => time() ] ) );
+        wp_send_json_success( $res );
+    }
+
+    wp_send_json_error( [ 'message' => 'Unhandled case' ], 500 );
+}

@@ -1,5 +1,8 @@
 <?php
 namespace WP_Etik;
+
+use WP_Error;
+
 // fichier : wp-etik-events/src/Loader.php
 
 class Loader {
@@ -22,6 +25,9 @@ class Loader {
 
 
     public function init_components() {
+
+        
+
         $cpt = new CPT_Event();
         $cpt->register();
 
@@ -34,16 +40,32 @@ class Loader {
         $inscriptions = new Frontend_Inscription();
         $inscriptions->init();
 
+
         if ( is_admin() && current_user_can( 'manage_options' ) ) {
+
 
             require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/admin-registrations.php';
             $registrations = new \WP_Etik\Admin\Registrations_Admin();
             $registrations->init();
 
+            //require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Stripe_Settings.php';
+            require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Payments/Payments_Settings.php';
+
+            // Initialise la page de réglages Paiements (Stripe + Mollie)
+            if ( class_exists( __NAMESPACE__ . '\\Admin\\Payments_Settings' ) ) {
+                \WP_Etik\Admin\Payments_Settings::init();
+                //error_log('ETIK: Payments_Settings::init() called');
+            } 
+            /*else {
+                error_log('ETIK: Payments_Settings class not found');
+            }*/
+
+            /*var_dump( class_exists( __NAMESPACE__ . '\\Admin\\Stripe_Settings' ) );
             // Initialise la page de réglages Stripe (la classe sera autoloadée)
             if ( class_exists( __NAMESPACE__ . '\\Admin\\Stripe_Settings' ) ) {
                 \WP_Etik\Admin\Stripe_Settings::init();
-            }
+            }*/
+            
         }
 
 

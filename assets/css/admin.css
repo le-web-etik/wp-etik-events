@@ -57,3 +57,14 @@
 .etik-registrants-container { padding:12px 0; }
 .etik-no-registrants { color:#666; padding:8px 0; }
 .etik-error { color:#b94a48; padding:8px 0; }
+
+/************************************************************************************************/
+/** PAGE PARAM **/
+.etik-admin .postbox{
+  border-radius: 5px;
+}
+.etik-admin .postbox h3.hndle,.etik-admin h3.stuffbox .hndle{
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background-color: #96ddff;
+}
