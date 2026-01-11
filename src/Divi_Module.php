@@ -1,6 +1,8 @@
 <?php
 namespace WP_Etik;
 
+defined('ABSPATH') || exit;
+
 if ( ! class_exists('ET_Builder_Module') ) return;
 
 class Divi_Module extends \ET_Builder_Module {

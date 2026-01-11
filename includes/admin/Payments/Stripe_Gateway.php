@@ -31,20 +31,58 @@ class Stripe_Gateway extends Abstract_Gateway {
 
     public function render_fields() : void {
 
-        // récupérer clés via la gateway
+        // Récupérer clés via la gateway
         $keys = $this->get_keys(); // retourne ['publishable','secret','webhook']
         $expected = rest_url('lwe/v1/stripe-webhook');
 
-        // vérifier si on a déjà un résultat de test (option) sinon exécuter la vérif live
+        // Vérifier si on a déjà un résultat de test (option) sinon exécuter la vérif live
         $check = \WP_Etik\Admin\Payments\Webhook_Checker::check_stripe_webhook( $keys['secret'], $expected );
 
-        //
+        // Nonce pour le test
         $nonce_webhook = wp_create_nonce( 'lwe_test_webhook_nonce' );
 
-        $publishable = esc_attr( get_option( self::OPT_PUBLISHABLE, '' ) );
-
-        //lwe_stripe_test_result
+        // Récupérer le résultat du dernier test de la clé
         $test_key = get_option( 'lwe_stripe_test_result', null );
+
+        // Statut de la clé Stripe (si testé)
+        $stripe_status = '';
+        $stripe_class = '';
+        $stripe_icon = '';
+        if ( is_array( $test_key ) ) {
+            if ( ! empty( $test_key['success'] ) ) {
+                $stripe_status = '✅ Clé Stripe valide';
+                $stripe_class = 'lwe-status-valid';
+                $stripe_icon = 'dashicons-yes';
+            } else {
+                $stripe_status = '❌ Clé Stripe invalide';
+                $stripe_class = 'lwe-status-invalid';
+                $stripe_icon = 'dashicons-no-alt';
+            }
+        } else {
+            $stripe_status = '⚠️ Non testée';
+            $stripe_class = 'lwe-status-pending';
+            $stripe_icon = 'dashicons-warning';
+        }
+
+        // Statut du webhook
+        $webhook_status = '';
+        $webhook_class = '';
+        $webhook_icon = '';
+        if ( $check['success'] ) {
+            $webhook_status = '✅ Webhook configuré';
+            $webhook_class = 'lwe-status-valid';
+            $webhook_icon = 'dashicons-yes';
+        } else {
+            $webhook_status = '❌ Webhook non configuré';
+            $webhook_class = 'lwe-status-invalid';
+            $webhook_icon = 'dashicons-no-alt';
+        }
+
+        // Valeurs actuelles
+        $publishable = esc_attr( get_option( self::OPT_PUBLISHABLE, '' ) );
+        $has_secret = ! empty( $keys['secret'] );
+        $has_webhook = ! empty( $keys['webhook'] );
+
         ?>
         <div class="postbox">
             <h3 class="hndle"><span><?php echo esc_html( $this->label ); ?></span></h3>
@@ -57,6 +95,11 @@ class Stripe_Gateway extends Abstract_Gateway {
                                 name="<?php echo esc_attr(self::OPT_PUBLISHABLE); ?>"
                                 value="<?php echo $publishable; ?>" class="regular-text" />
                             <p class="description"><?php esc_html_e('Clé publique Stripe (ex. pk_test_...)','wp-etik-events'); ?></p>
+                            <?php if ( ! empty( $publishable ) ) : ?>
+                                <div class="lwe-field-status lwe-status-valid">
+                                    <span class="dashicons dashicons-yes"></span> Clé remplie
+                                </div>
+                            <?php endif; ?>
                         </td>
                     </tr>
 
@@ -67,6 +110,14 @@ class Stripe_Gateway extends Abstract_Gateway {
                                 name="<?php echo esc_attr(self::OPT_SECRET_ENC); ?>"
                                 value="" class="regular-text" autocomplete="new-password" />
                             <p class="description"><?php esc_html_e('Clé secrète Stripe. Laisser vide pour conserver la valeur existante.','wp-etik-events'); ?></p>
+                            <?php if ( $has_secret ) : ?>
+                                <div class="lwe-field-status lwe-status-valid">
+                                    <span class="dashicons dashicons-yes"></span> Clé secrète configurée
+                                </div>
+                            <?php endif; ?>
+                            <div class="lwe-stripe-status <?php echo esc_attr( $stripe_class ); ?>">
+                                <span class="dashicons <?php echo esc_attr( $stripe_icon ); ?>"></span> <?php echo esc_html( $stripe_status ); ?>
+                            </div>
                         </td>
                     </tr>
 
@@ -77,65 +128,40 @@ class Stripe_Gateway extends Abstract_Gateway {
                                 name="<?php echo esc_attr(self::OPT_WEBHOOK_ENC); ?>"
                                 value="" class="regular-text" autocomplete="new-password" />
                             <p class="description"><?php esc_html_e('Signing secret pour vérifier les webhooks Stripe.','wp-etik-events'); ?></p>
-                            
-                            <?php // affichage (config webhook)
-                            if ( $check['success'] ) {
-                                echo '<div style="padding:8px;border-left:4px solid #46b450;background:#f0fff4;color:#0b6b2f;">';
-                                echo '<strong>Webhook Stripe configuré</strong><div>' . esc_html($check['message']) . '</div>';
-                                echo '</div>';
-                            } else {
-                                echo '<div style="padding:8px;border-left:4px solid #d63638;background:#fff6f6;color:#8a1f1f;">';
-                                echo '<strong>Webhook Stripe non configuré</strong><div>' . esc_html($check['message']) . '</div>';
-                                if ( ! empty($check['details']) ) {
-                                    echo '<div style="font-size:12px;color:#666;">' . esc_html( wp_json_encode($check['details']) ) . '</div>';
-                                }
-                                echo '</div>';
-                            } 
-                            
-                            $last = get_option('lwe_stripe_webhook_check', null);
-                            if ( is_array($last) ) {
-                                echo '<div class="lwe-last-check">Dernier test: ' . esc_html( date_i18n( get_option('date_format') . ' ' . get_option('time_format'), (int) ($last['time'] ?? time()) ) ) . ' — ' . esc_html( $last['message'] ?? '' ) . '</div>';
-                            }
-                            ?>
-
-
-
+                            <?php if ( $has_webhook ) : ?>
+                                <div class="lwe-field-status lwe-status-valid">
+                                    <span class="dashicons dashicons-yes"></span> Webhook secret configuré
+                                </div>
+                            <?php endif; ?>
+                            <div class="lwe-webhook-status <?php echo esc_attr( $webhook_class ); ?>">
+                                <span class="dashicons <?php echo esc_attr( $webhook_icon ); ?>"></span> <?php echo esc_html( $webhook_status ); ?>
+                            </div>
                         </td>
                     </tr>
                 </table>
-                
+
                 <!-- BOUTON POUR TESTER WEBHOOK -->
                 <p>
-                    <button type="button" class="button button-secondary lwe-test-webhook" data-gateway="stripe" data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                    <button type="button" class="button button-secondary lwe-test-webhook" data-gateway="stripe" data-nonce="<?php echo esc_attr( $nonce_webhook ); ?>">
                         <?php esc_html_e( 'Tester le webhook', 'wp-etik-events' ); ?>
                     </button>
                     <span class="lwe-test-spinner" style="display:none;margin-left:8px;"><?php esc_html_e( 'Test en cours…', 'wp-etik-events' ); ?></span>
                 </p>
                 <div class="lwe-test-result" id="lwe-test-result-stripe"></div>
 
-                <!-- AFFICHE ETAT CLE STRIPE -->
-                <?php if ( is_array( $test_key ) ) : ?>
-                    <div style="margin-top:10px;">
-                        <?php if ( ! empty( $test_key['success'] ) ) : ?>
-                            <div style="padding:8px;border-left:4px solid #46b450;background:#f0fff4;color:#0b6b2f;">
-                                <strong><?php esc_html_e('Connexion Stripe OK','wp-etik-events'); ?></strong>
-                                <div><?php echo esc_html( $test_key['message'] ); ?></div>
-                                <div style="font-size:12px;color:#666;"><?php echo esc_html( date_i18n( get_option('date_format') . ' ' . get_option('time_format'), (int) $test_key['time'] ) ); ?></div>
-                            </div>
-                        <?php else : ?>
-                            <div style="padding:8px;border-left:4px solid #d63638;background:#fff6f6;color:#8a1f1f;">
-                                <strong><?php esc_html_e('Échec de la connexion Stripe','wp-etik-events'); ?></strong>
-                                <div><?php echo esc_html( $test_key['message'] ); ?></div>
-                                <div style="font-size:12px;color:#666;"><?php echo esc_html( date_i18n( get_option('date_format') . ' ' . get_option('time_format'), (int) $test_key['time'] ) ); ?></div>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                <?php else : ?>
-                    <p class="description"><?php esc_html_e('Aucun test effectué pour Stripe.', 'wp-etik-events'); ?></p>
-                <?php endif; ?>
+                <!-- DERNIER TEST -->
+                <?php
+                $last = get_option('lwe_stripe_webhook_check', null);
+                if ( is_array($last) ) {
+                    echo '<div class="lwe-last-check" style="margin-top:8px;font-size:12px;color:#666;">';
+                    echo 'Dernier test: ' . esc_html( date_i18n( get_option('date_format') . ' ' . get_option('time_format'), (int) ($last['time'] ?? time()) ) ) . ' — ' . esc_html( $last['message'] ?? '' );
+                    echo '</div>';
+                }
+                ?>
             </div>
         </div>
-        <?php
+
+    <?php
     }
 
     public function sanitize_and_encrypt_secret( $new_value ) {

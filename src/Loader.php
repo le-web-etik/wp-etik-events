@@ -1,12 +1,19 @@
 <?php
 namespace WP_Etik;
 
+defined('ABSPATH') || exit;
+
 use WP_Error;
 
 // fichier : wp-etik-events/src/Loader.php
 
 class Loader {
     public function run() {
+
+        // Charger webhooks.php AVANT rest_api_init
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Stripe_Settings.php';
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/webhooks.php';
+
         spl_autoload_register( function($class){
             $prefix = __NAMESPACE__ . '\\';
             if (strpos($class, $prefix) !== 0) return;
@@ -40,7 +47,6 @@ class Loader {
         $inscriptions = new Frontend_Inscription();
         $inscriptions->init();
 
-
         if ( is_admin() && current_user_can( 'manage_options' ) ) {
 
 
@@ -48,7 +54,7 @@ class Loader {
             $registrations = new \WP_Etik\Admin\Registrations_Admin();
             $registrations->init();
 
-            //require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Stripe_Settings.php';
+            require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Stripe_Settings.php';
             require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Payments/Payments_Settings.php';
 
             // Initialise la page de réglages Paiements (Stripe + Mollie)
@@ -116,7 +122,7 @@ class Loader {
 
     public function admin_assets() {
 
-        wp_enqueue_style('etik-admin', WP_ETIK_PLUGIN_URL . 'assets/css/admin.css');
+        wp_enqueue_style('etik-admin', WP_ETIK_PLUGIN_URL . 'assets/css/admin.css', [], '1.0');
         wp_enqueue_script('etik-admin', WP_ETIK_PLUGIN_URL . 'assets/js/admin.js', ['jquery','jquery-ui-datepicker'], false, true);
         wp_enqueue_script('jquery-ui-datepicker');
         wp_enqueue_style('jquery-ui-css','https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css');

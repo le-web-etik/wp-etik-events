@@ -3,6 +3,9 @@
 .et-db #et-boc .et-l .et-fb-modules-list ul > li::before.etk_events{ content: "e";}
 
 /*** META BOX ***/
+#etik_event_meta{
+  background-color: #e4fbff;
+}
 .etik-meta-grid {
     display: flex;
     flex-wrap: wrap;
@@ -17,8 +20,7 @@
 }
 .etik-meta-field label { display:block; font-weight:600; margin-bottom:6px; }
 .etik-meta-field input[type="text"],
-.etik-meta-field input[type="number"],
-.etik-meta-field input[type="checkbox"] {
+.etik-meta-field input[type="number"] {
     width: 100%;
     box-sizing: border-box;
 }
@@ -67,4 +69,57 @@
   margin: 0;
   padding: 0.5rem 1rem;
   background-color: #96ddff;
+}
+
+.lwe-field-status {
+    margin-top: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    display: inline-block;
+}
+.lwe-status-valid {
+    background: #f0fff4;
+    color: #0b6b2f;
+    border-left: 4px solid #46b450;
+}
+.lwe-status-invalid {
+    background: #fff6f6;
+    color: #8a1f1f;
+    border-left: 4px solid #d63638;
+}
+.lwe-status-pending {
+    background: #fff;
+    color: #666;
+    border-left: 4px solid #ffb900;
+}
+.lwe-stripe-status,
+.lwe-webhook-status {
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.lwe-stripe-status .dashicons,
+.lwe-webhook-status .dashicons {
+    font-size: 20px;
+}
+.lwe-test-result {
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.lwe-test-result.success {
+    background: #f0fff4;
+    color: #0b6b2f;
+    border-left: 4px solid #46b450;
+}
+.lwe-test-result.error {
+    background: #fff6f6;
+    color: #8a1f1f;
+    border-left: 4px solid #d63638;
 }

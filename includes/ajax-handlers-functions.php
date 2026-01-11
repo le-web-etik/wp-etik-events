@@ -231,3 +231,179 @@ function wp_etik_send_confirmation_email_service_style( array $args ) {
         'admin_sent'       => (bool) $sent_to_admin,
     ];
 }
+
+/**
+ * Crée ou récupère un utilisateur par email.
+ * Retourne l'ID utilisateur, ou WP_Error en cas d'erreur.
+ *
+ * @param string $email
+ * @param string $first_name
+ * @param string $last_name
+ * @return int|WP_Error
+ */
+function wp_etik_get_or_create_user( $email, $first_name, $last_name = '' ) {
+    // Vérifier si l'utilisateur existe déjà
+    $existing_user = get_user_by( 'email', $email );
+    if ( $existing_user ) {
+        return (int) $existing_user->ID;
+    }
+
+    // Générer un login unique
+    $base = preg_replace( '/[^a-z0-9]/', '', strtolower( $first_name ) );
+    if ( empty( $base ) ) {
+        $base = 'user';
+    }
+
+    $attempt = 0;
+    do {
+        $suffix = wp_generate_password( 5, false, false );
+        $login  = $base . $suffix;
+        $attempt++;
+        if ( $attempt > 8 ) {
+            $login = $base . time();
+            break;
+        }
+    } while ( username_exists( $login ) );
+
+    // Générer un mot de passe
+    $pass_length = rand( 12, 16 );
+    $password = wp_generate_password( $pass_length, true, true );
+
+    $userdata = [
+        'user_login'   => $login,
+        'user_email'   => $email,
+        'user_pass'    => $password,
+        'first_name'   => $first_name,
+        'last_name'    => $last_name,
+        'display_name' => trim( $first_name . ' ' . $last_name ),
+    ];
+
+    $user_id = wp_insert_user( $userdata );
+    if ( is_wp_error( $user_id ) ) {
+        error_log( '[WP_ETIK] User creation error: ' . $user_id->get_error_message() );
+        return $user_id;
+    }
+
+    return (int) $user_id;
+}
+
+/**
+ * Récupère ou crée une inscription pour un événement + utilisateur.
+ * Si une inscription `pending` existe déjà → met à jour le token.
+ * Si une inscription `confirmed` existe → retourne une erreur.
+ *
+ * @param int    $event_id
+ * @param int    $user_id
+ * @param string $email
+ * @param string $first_name
+ * @param string $last_name
+ * @param string $phone
+ * @param string $desired_domain
+ * @param int    $has_domain
+ * @return array|WP_Error { 'id' => int, 'status' => 'pending'|'updated', 'token' => string, 'token_expires' => string }
+ */
+function wp_etik_get_or_update_inscription( $event_id, $user_id, $email, $first_name, $last_name, $phone, $desired_domain, $has_domain ) {
+    global $wpdb;
+    $table = $wpdb->prefix . 'etik_inscriptions';
+
+    // Vérifier si déjà inscrit en `confirmed`
+    $existing_confirmed = $wpdb->get_var( $wpdb->prepare(
+        "SELECT id FROM {$table} WHERE event_id = %d AND user_id = %d AND status = %s LIMIT 1",
+        $event_id, $user_id, 'confirmed'
+    ) );
+
+    if ( $existing_confirmed ) {
+        return new WP_Error( 'already_confirmed', 'Vous êtes déjà inscrit à cette formation.' );
+    }
+
+    // Vérifier si une inscription `pending` existe
+    $pending_row = $wpdb->get_row( $wpdb->prepare(
+        "SELECT id, status FROM {$table} WHERE event_id = %d AND user_id = %d AND status = %s LIMIT 1",
+        $event_id, $user_id, 'pending'
+    ), ARRAY_A );
+
+    $now_ts = (int) current_time( 'timestamp' );
+    $ttl_secs = 48 * 3600;
+    $expires_ts = $now_ts + $ttl_secs;
+    $expires_mysql = date( 'Y-m-d H:i:s', $expires_ts );
+    $token = wp_generate_password( 32, false, false );
+
+    if ( $pending_row ) {
+        // Mettre à jour l'inscription existante
+        $updated = $wpdb->update(
+            $table,
+            [
+                'email'         => $email,
+                'first_name'    => $first_name,
+                'last_name'     => $last_name,
+                'phone'         => $phone,
+                'desired_domain'=> $desired_domain,
+                'has_domain'    => $has_domain,
+                'token'         => $token,
+                'token_expires' => $expires_mysql,
+                'registered_at' => current_time( 'mysql' ),
+                'status'        => 'pending',
+            ],
+            [ 'id' => intval( $pending_row['id'] ) ],
+            [ '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s' ],
+            [ '%d' ]
+        );
+
+        if ( $updated === false ) {
+            error_log( "[WP_ETIK] DB update failed: {$wpdb->last_error}" );
+            return new WP_Error( 'db_update_failed', 'Erreur lors de la mise à jour de l\'inscription.' );
+        }
+
+        return [
+            'id'            => intval( $pending_row['id'] ),
+            'status'        => 'updated',
+            'token'         => $token,
+            'token_expires' => $expires_mysql,
+        ];
+    }
+
+    // Créer une nouvelle inscription
+    $insert_row = [
+        'event_id'       => $event_id,
+        'user_id'        => $user_id,
+        'email'          => $email,
+        'first_name'     => $first_name,
+        'last_name'      => $last_name,
+        'phone'          => $phone,
+        'desired_domain' => $desired_domain,
+        'has_domain'     => $has_domain,
+        'status'         => 'pending',
+        'token'          => $token,
+        'token_expires'  => $expires_mysql,
+        'registered_at'  => current_time( 'mysql' ),
+    ];
+
+    $format = [
+        '%d', // event_id
+        '%d', // user_id
+        '%s', // email
+        '%s', // first_name
+        '%s', // last_name
+        '%s', // phone
+        '%s', // desired_domain
+        '%d', // has_domain
+        '%s', // status
+        '%s', // token
+        '%s', // token_expires
+        '%s', // registered_at
+    ];
+
+    $inserted = $wpdb->insert( $table, $insert_row, $format );
+    if ( $inserted === false ) {
+        error_log( '[WP_ETIK] Insert failed: ' . $wpdb->last_error );
+        error_log( '[WP_ETIK] Query: ' . $wpdb->last_query );
+        return new WP_Error( 'db_insert_failed', 'Erreur lors de la création de l\'inscription.' );
+    }
+
+    return [
+        'id'            => (int) $wpdb->insert_id,
+        'status'        => 'created',
+        'token'         => $token,
+        'token_expires' => $expires_mysql,
+    ];
+}

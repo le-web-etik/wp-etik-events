@@ -1,6 +1,8 @@
 <?php
 namespace WP_Etik;
 
+defined('ABSPATH') || exit;
+
 class Meta_Event {
     public function init() {
         add_action('add_meta_boxes', [$this, 'add_meta_boxes']);
@@ -56,8 +58,11 @@ class Meta_Event {
 
                 <div class="etik-meta-field">
                     <label><?php _e('Paiement obligatoire','wp-etik-events'); ?></label>
-                    <input type="checkbox" name="etik_payment_required" value="1" <?php checked($payment_required, '1'); ?> />
-                    <div class="small"><?php _e('Cocher si le paiement est requis pour valider l\'inscription','wp-etik-events'); ?></div>
+                    
+                    <div class="small">
+                        <input type="checkbox" name="etik_payment_required" value="1" <?php checked($payment_required, '1'); ?> />
+                        <?php _e('Cocher si le paiement est requis pour valider l\'inscription','wp-etik-events'); ?>
+                    </div>
                 </div>
             </div>
 

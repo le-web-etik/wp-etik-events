@@ -1,6 +1,8 @@
 <?php
 namespace WP_Etik;
 
+defined('ABSPATH') || exit;
+
 if ( ! class_exists(__NAMESPACE__ . '\\Etik_Modal_Manager') ) {
 
 class Etik_Modal_Manager {
@@ -59,7 +61,8 @@ class Etik_Modal_Manager {
                     <div class="etik-panel active" data-panel="insc">
                         <form class="etik-insc-form">
                             <div class="etik-modal-content" >
-                                <input type="hidden" name="action" value="wp_etik_handle_inscription">
+                                <!--<input type="hidden" name="action" value="wp_etik_handle_inscription">-->
+                                <input type="hidden" name="action" value="lwe_create_checkout">
                                 <input type="hidden" name="event_id" value="">
                                 <label>Prénom <i>*</i>
                                     <input name="first_name" type="text" required>

@@ -170,7 +170,7 @@
     }
 
     var postData = {
-      action: $form.find('input[name="action"]').val() || 'wp_etik_handle_inscription',
+      action: $form.find('input[name="action"]').val() || 'lwe_create_checkout',
       first_name: first_name,
       last_name: last_name,
       email: email,
@@ -200,10 +200,31 @@
 
     $.post(ajaxUrl, postData, function(resp){
       $submit.prop('disabled', false);
+
+      
+
       if (resp && resp.success) {
-        showFeedback($m, 'success', resp.data && resp.data.message ? resp.data.message : 'Inscription enregistrée. Vérifiez votre e-mail pour confirmer.');
-        // auto close after short delay
+
+        var data = resp.data || {};
+
+        // Si checkout_url présent → rediriger
+        if (data.checkout_url) {
+            showFeedback($m, 'success', '<div style="display:flex;align-items:center;gap:8px;"><span class="dashicons dashicons-yes"></span> Redirection vers le paiement...</div>');
+            //showFeedback($m, 'success', 'Redirection vers le paiement...');
+            setTimeout(function(){
+                window.location.href = data.checkout_url;
+            }, 1500);
+            return;
+        }
+
+        // Sinon → afficher message et fermer modal
+        var message = data.message || 'Inscription enregistrée. Vérifiez votre e-mail pour confirmer.';
+        showFeedback($m, 'success', message);
         setTimeout(function(){ closeModal($m); }, 2200);
+
+        /*showFeedback($m, 'success', resp.data && resp.data.message ? resp.data.message : 'Inscription enregistrée. Vérifiez votre e-mail pour confirmer.');
+        // auto close after short delay
+        setTimeout(function(){ closeModal($m); }, 2200);*/
       } else {
         var msg = 'Erreur';
         if (resp && resp.data && resp.data.message) msg = resp.data.message;
@@ -214,6 +235,7 @@
           if (typeof hcaptcha !== 'undefined' && w !== undefined) { hcaptcha.reset(w); }
         } catch(e){}
       }
+
     }, 'json').fail(function(){
       $submit.prop('disabled', false);
       showFeedback($m, 'error', 'Erreur réseau. Réessayez.');
