@@ -474,9 +474,22 @@ function lwe_create_checkout() {
         ] );
     }
 
+    // URL de retour (customisable)
+    $return_url = wp_etik_get_payment_return_url();
+
+    $success_url = add_query_arg( [
+        'status' => 'success',
+        'msg' => urlencode( 'Paiement réussi. Votre inscription est confirmée.' ),
+    ], $return_url );
+
+    $cancel_url = add_query_arg( [
+        'status' => 'cancel',
+        'msg' => urlencode( 'Paiement annulé. Votre réservation reste en attente.' ),
+    ], $return_url );
+
     // URLs de redirection
-    $success_url = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'success' ], home_url( '/' ) );
-    $cancel_url  = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'cancel' ], home_url( '/' ) );
+    //$success_url = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'success' ], home_url( '/' ) );
+    //$cancel_url  = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'cancel' ], home_url( '/' ) );
 
     $body = [
         'payment_method_types[]' => 'card',

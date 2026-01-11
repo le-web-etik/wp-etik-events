@@ -71,6 +71,12 @@ class Payments_Settings {
         foreach ( $this->gateways as $gw ) {
             $gw->register_settings();
         }
+
+        // Enregistrement par defaut de l’URL retour de paiement
+        register_setting( 'wp_etik_settings', 'wp_etik_payment_return_url', [
+            'sanitize_callback' => 'esc_url_raw',
+            'default' => home_url( '/confirmation_de_paiement/' ),
+        ] );
     }
 
     public function enqueue_assets( $hook ) : void {
@@ -87,6 +93,11 @@ class Payments_Settings {
         ?>
         <div class="wrap etik-admin">
             <h1><?php esc_html_e( 'Paramètres de paiement', 'wp-etik-events' ); ?></h1>
+
+            <?php
+            // Ajouter la section pour la page de retour
+            $this->render_payment_page_section();
+            ?>
 
             <form method="post" action="options.php">
                 <?php
@@ -113,8 +124,121 @@ class Payments_Settings {
     public function get_all_keys() : array {
         $out = [];
         foreach ( $this->gateways as $gw ) {
-            $out[ $gw->id ] = $gw->get_keys();
+            $out[ $gw->get_id() ] = $gw->get_keys();
         }
         return $out;
     }
+
+    /**
+     * Créer la page de retour de paiement si elle n’existe pas
+     */
+    public function wp_etik_create_payment_page() {
+        $page_title = 'Confirmation de Paiement';
+        $page_slug = 'confirmation_de_paiement';
+
+        // Vérifier si la page existe déjà
+        $page = get_page_by_path( $page_slug );
+
+        if ( ! $page ) {
+            $page_id = wp_insert_post([
+                'post_title'   => $page_title,
+                'post_name'    => $page_slug,
+                'post_content' => '[wp_etik_payment_return]',
+                'post_status'  => 'publish',
+                'post_type'    => 'page',
+                'post_author'  => 1,
+            ]);
+
+            if ( ! is_wp_error( $page_id ) ) {
+                update_option( 'wp_etik_payment_page_id', $page_id );
+            }
+        } else {
+            update_option( 'wp_etik_payment_page_id', $page->ID );
+        }
+    }
+
+    /**
+     * Gérer la création de la page de retour de paiement
+     */
+    public function handle_generate_payment_page( $url ) {
+        // Nettoyer l'URL
+        $url = trim( $url, '/' );
+        if ( empty( $url ) ) {
+            echo '<div class="notice notice-error"><p>' . esc_html__( 'URL requise.', 'wp-etik-events' ) . '</p></div>';
+            return;
+        }
+
+        // Créer la page
+        $page_title = 'Confirmation de Paiement';
+        $page_slug = $url;
+
+        $page = get_page_by_path( $page_slug );
+
+        if ( ! $page ) {
+            $page_id = wp_insert_post([
+                'post_title'   => $page_title,
+                'post_name'    => $page_slug,
+                'post_content' => '[wp_etik_payment_return]',
+                'post_status'  => 'publish',
+                'post_type'    => 'page',
+                'post_author'  => 1,
+            ]);
+
+            if ( is_wp_error( $page_id ) ) {
+                echo '<div class="notice notice-error"><p>' . esc_html__( 'Erreur lors de la création de la page.', 'wp-etik-events' ) . '</p></div>';
+                return;
+            }
+
+            update_option( 'wp_etik_payment_page_id', $page_id );
+            update_option( 'wp_etik_payment_return_url', home_url( '/' . $page_slug . '/' ) );
+
+            echo '<div class="notice notice-success"><p>' . esc_html__( 'Page créée avec succès.', 'wp-etik-events' ) . '</p></div>';
+        } else {
+            update_option( 'wp_etik_payment_page_id', $page->ID );
+            update_option( 'wp_etik_payment_return_url', home_url( '/' . $page_slug . '/' ) );
+
+            echo '<div class="notice notice-success"><p>' . esc_html__( 'Page déjà existante. URL mise à jour.', 'wp-etik-events' ) . '</p></div>';
+        }
+    }
+
+
+    /**
+     * Afficher la section pour la page de retour de paiement
+     */
+    public function render_payment_page_section() {
+        ?>
+        <div class="postbox">
+            <h3 class="hndle"><span><?php esc_html_e( 'Page de retour de paiement', 'wp-etik-events' ); ?></span></h3>
+            <div class="inside">
+                <p><?php esc_html_e( 'Créez une page pour afficher les retours de paiement (succès, annulation, erreur).', 'wp-etik-events' ); ?></p>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="wp_etik_payment_return_url"><?php esc_html_e( 'URL de la page', 'wp-etik-events' ); ?></label></th>
+                        <td>
+                            <input type="text" id="wp_etik_payment_return_url" name="wp_etik_payment_return_url" value="<?php echo esc_attr( get_option( 'wp_etik_payment_return_url', home_url( '/confirmation_de_paiement/' ) ) ); ?>" class="regular-text" />
+                            <p class="description"><?php esc_html_e( 'Exemple : /paiement/ ou /confirmation-de-paiement/. La page sera créée si elle n’existe pas.', 'wp-etik-events' ); ?></p>
+                        </td>
+                    </tr>
+                </table>
+
+                <p>
+                    <input type="submit" name="wp_etik_generate_payment_page" class="button button-primary" value="<?php esc_html_e( 'Générer la page', 'wp-etik-events' ); ?>" />
+                </p>
+
+                <?php
+                // Afficher le message de retour s'il existe
+                if ( isset( $_POST['wp_etik_generate_payment_page'] ) && isset( $_POST['wp_etik_payment_return_url'] ) ) {
+                    $url = sanitize_text_field( $_POST['wp_etik_payment_return_url'] );
+                    $this->handle_generate_payment_page( $url );
+                }
+                ?>
+            </div>
+        </div>
+        <?php
+    }
+ 
+
+    
+
 }

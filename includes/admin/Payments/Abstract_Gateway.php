@@ -25,6 +25,11 @@ abstract class Abstract_Gateway {
         $this->label = $label;
     }
 
+    /** renvoie l'id du gateway */
+    public function get_id() : string {
+        return $this->id;
+    }
+
     /** Enregistrer les settings (appelé depuis admin_init) */
     abstract public function register_settings() : void;
 

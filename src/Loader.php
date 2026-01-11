@@ -26,6 +26,7 @@ class Loader {
         add_action('plugins_loaded', [ $this, 'plugins_loaded' ], 15);
         add_action('admin_enqueue_scripts', [ $this, 'admin_assets' ]);
         add_action('wp_enqueue_scripts', [ $this, 'public_assets' ]);
+        add_shortcode('wp_etik_payment_return', [$this, 'wp_etik_payment_return_shortcode']);
     }
 
 
@@ -181,5 +182,50 @@ class Loader {
         if ( get_option('wp_etik_hcaptcha_sitekey') ) {
             wp_enqueue_script('hcaptcha', 'https://hcaptcha.com/1/api.js', [], null, true);
         }
+    }
+
+    /**
+     * Shortcode pour afficher le retour de paiement
+     */
+    function wp_etik_payment_return_shortcode() {
+        if ( ! isset( $_GET['status'] ) ) {
+            return '<div class="notice notice-warning"><p>Paramètre manquant. Veuillez contacter le support.</p></div>';
+        }
+
+        $status = sanitize_key( $_GET['status'] );
+        $msg = isset( $_GET['msg'] ) ? urldecode( $_GET['msg'] ) : '';
+
+        // Définir les messages par défaut selon le statut
+        $default_messages = [
+            'success' => '✅ Paiement réussi. Votre inscription est confirmée.',
+            'cancel'  => '❌ Paiement annulé. Votre réservation reste en attente.',
+            'error'   => '⚠️ Une erreur est survenue. Veuillez contacter le support.',
+        ];
+
+        $message = $msg ?: $default_messages[$status] ?? $default_messages['error'];
+
+        // Couleur et icône selon le statut
+        $class = '';
+        $icon = '';
+
+        if ( $status === 'success' ) {
+            $class = 'notice-success';
+            $icon = 'dashicons-yes';
+        } elseif ( $status === 'cancel' ) {
+            $class = 'notice-error';
+            $icon = 'dashicons-no-alt';
+        } else {
+            $class = 'notice-warning';
+            $icon = 'dashicons-warning';
+        }
+
+        // HTML du message
+        $output = '<div class="notice ' . esc_attr( $class ) . ' is-dismissible" style="padding:20px;max-width:600px;margin:20px auto;text-align:center;">';
+        $output .= '<span class="dashicons ' . esc_attr( $icon ) . '" style="font-size:30px;margin-bottom:10px;display:block;"></span>';
+        $output .= '<p style="font-size:16px;margin:0;">' . esc_html( $message ) . '</p>';
+        $output .= '<a href="' . esc_url( home_url() ) . '" class="button button-primary" style="margin-top:20px;">Retour à l\'accueil</a>';
+        $output .= '</div>';
+
+        return $output;
     }
 }

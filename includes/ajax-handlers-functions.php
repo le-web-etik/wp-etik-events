@@ -407,3 +407,10 @@ function wp_etik_get_or_update_inscription( $event_id, $user_id, $email, $first_
         'token_expires' => $expires_mysql,
     ];
 }
+
+/**
+ * Fonction pour récupérer l’URL
+ */ 
+function wp_etik_get_payment_return_url() {
+    return get_option( 'wp_etik_payment_return_url', home_url( '/confirmation_de_paiement/' ) );
+}

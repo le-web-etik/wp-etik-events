@@ -112,6 +112,7 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
             }
         }
     } elseif ( in_array($type, ['checkout.session.expired', 'checkout.session.async_payment_failed'], true) ) {
+        
         $session = $event['data']['object'] ?? null;
         if ( $session ) {
             $session_id = sanitize_text_field( $session['id'] ?? '' );
@@ -125,6 +126,16 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
                 );
             }
         }
+
+        // Rediriger vers la page avec statut 'error'
+        $error_url = add_query_arg( [
+            'status' => 'error',
+            'msg' => urlencode( 'Le paiement a échoué. Veuillez contacter le support.' ),
+        ], wp_etik_get_payment_return_url() );
+
+        // Optionnel : rediriger via JS ou PHP
+        wp_safe_redirect( $error_url );
+        exit;
     }
 
     return new \WP_REST_Response('ok', 200);
