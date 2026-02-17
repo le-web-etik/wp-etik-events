@@ -479,18 +479,17 @@ function lwe_create_checkout() {
 
     $success_url = add_query_arg( [
         'status' => 'success',
-        'msg' => urlencode( 'Paiement réussi. Votre inscription est confirmée.' ),
     ], $return_url );
 
     $cancel_url = add_query_arg( [
         'status' => 'cancel',
-        'msg' => urlencode( 'Paiement annulé. Votre réservation reste en attente.' ),
     ], $return_url );
 
     // URLs de redirection
     //$success_url = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'success' ], home_url( '/' ) );
     //$cancel_url  = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'cancel' ], home_url( '/' ) );
 
+    //'customer_name' => trim( $first_name . ' ' . $last_name ), 
     $body = [
         'payment_method_types[]' => 'card',
         'mode' => 'payment',
@@ -498,8 +497,7 @@ function lwe_create_checkout() {
         'line_items[0][price_data][product_data][name]' => 'Acompte réservation',
         'line_items[0][price_data][unit_amount]' => 10000, // 100 €
         'line_items[0][quantity]' => 1,
-        'customer_email' => $email, 
-        'customer_name' => trim( $first_name . ' ' . $last_name ), 
+        'customer_email' => $email,
         'metadata[inscription_id]' => (string) $ins_id,
         'metadata[event_id]' => (string) $event_id,
         'success_url' => $success_url,

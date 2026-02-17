@@ -92,6 +92,9 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
                 // Envoyer l'e-mail de confirmation
                 if ( ! empty( $email ) ) {
                     wp_etik_send_confirmation_email_after_payment( $ins_id, $email, $customer_name );
+
+                    // Envoyer une notification à l'admin
+                    wp_etik_send_admin_notification_email( $ins_id, $email, $customer_name );
                 }
 
             } elseif ( $session_id ) {
@@ -108,6 +111,9 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
                 $inscription = $wpdb->get_row( $wpdb->prepare( "SELECT email FROM {$table} WHERE payment_session_id = %s LIMIT 1", $session_id ), ARRAY_A );
                 if ( ! empty( $inscription['email'] ) ) {
                     wp_etik_send_confirmation_email_after_payment( $inscription['id'], $inscription['email'], '' );
+
+                    // Envoyer une notification à l'admin
+                    wp_etik_send_admin_notification_email( $inscription['id'], $inscription['email'], $customer_name );
                 }
             }
         }
@@ -165,18 +171,20 @@ function wp_etik_send_confirmation_email_after_payment( $inscription_id, $email,
 
     $message = '
     <html>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-            <h2 style="color: #46b450;">✅ Confirmation d\'inscription</h2>
-            <p>Bonjour ' . esc_html( $customer_name ?: $inscription['first_name'] ) . ',</p>
-            <p>Merci pour votre paiement ! Votre inscription à la formation <strong>' . esc_html( $event_title ) . '</strong> est confirmée.</p>
-            <p>Vous recevrez un rappel quelques jours avant l\'événement.</p>
-            <p>Pour accéder à votre espace, <a href="' . esc_url( home_url( '/mon-espace' ) ) . '">cliquez ici</a>.</p>
-            <p>À bientôt,<br>L\'équipe Le Web Etik</p>
-        </div>
-    </body>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h2 style="color: #46b450;">✅ Confirmation d\'inscription</h2>
+                <p>Bonjour ' . esc_html( $customer_name ?: $inscription['first_name'] ) . ',</p>
+                <p>Merci pour votre paiement ! Votre inscription à la formation <strong>' . esc_html( $event_title ) . '</strong> est confirmée.</p>
+                <p>Vous recevrez un rappel quelques jours avant l\'événement.</p>
+                
+                <p>À bientôt,<br>L\'équipe Le Web Etik</p>
+            </div>
+        </body>
     </html>
     ';
+
+    //<p>Pour accéder à votre espace, <a href="' . esc_url( home_url( '/espace-client' ) ) . '">cliquez ici</a>.</p>
 
     $headers = [
         'Content-Type: text/html; charset=UTF-8',
@@ -189,5 +197,53 @@ function wp_etik_send_confirmation_email_after_payment( $inscription_id, $email,
         error_log( "[WP-Etik] Email not sent to {$email} for inscription {$inscription_id}" );
     } else {
         error_log( "[WP-Etik] Email sent to {$email} for inscription {$inscription_id}" );
+    }
+}
+
+
+/**
+ * Envoyer une notification par e-mail à l'administrateur du site lors d'une nouvelle réservation
+ *
+ * @param int    $inscription_id
+ * @param string $customer_email
+ * @param string $customer_name
+ * @param string $event_title
+ */
+function wp_etik_send_admin_notification_email( $inscription_id, $customer_email, $customer_name = '', $event_title = '' ) {
+    $admin_email = get_option( 'admin_email' ); // Récupère l'email admin configuré dans WordPress
+    if ( ! $admin_email ) {
+        error_log( '[WP-Etik] Admin email not set.' );
+        return;
+    }
+
+    $subject = "🔔 Nouvelle réservation confirmée : {$event_title}";
+
+    $message = '
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+            <h2 style="color: #0073aa;">🔔 Nouvelle réservation confirmée</h2>
+            <p><strong>Événement :</strong> ' . esc_html( $event_title ) . '</p>
+            <p><strong>Client :</strong> ' . esc_html( $customer_name ?: 'Non renseigné' ) . '</p>
+            <p><strong>Email :</strong> ' . esc_html( $customer_email ) . '</p>
+            <p><strong>ID de réservation :</strong> #' . intval( $inscription_id ) . '</p>
+            <p><a href="' . esc_url( admin_url( 'admin.php?page=etik-inscriptions&id=' . $inscription_id ) ) . '">Voir la réservation dans l’admin</a></p>
+            <p>Cette notification a été envoyée automatiquement par Le Web Etik.</p>
+        </div>
+    </body>
+    </html>
+    ';
+
+    $headers = [
+        'Content-Type: text/html; charset=UTF-8',
+        'From: Le Web Etik <reservation@lewebetik.fr>'
+    ];
+
+    $sent = wp_mail( $admin_email, $subject, $message, $headers );
+
+    if ( ! $sent ) {
+        error_log( "[WP-Etik] Admin email not sent for inscription {$inscription_id}" );
+    } else {
+        error_log( "[WP-Etik] Admin email sent for inscription {$inscription_id}" );
     }
 }
