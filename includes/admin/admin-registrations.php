@@ -10,6 +10,7 @@ class Registrations_Admin {
     // méthode init() ou constructeur de Registrations_Admin
     public function init() {
         add_action( 'admin_menu', [ $this, 'add_menu' ] );
+        add_action( 'admin_menu', [ $this, 'wp_etik_reorganize_admin_menu' ], 999 );
         add_action( 'admin_post_wp_etik_export_registrations', [ $this, 'export_registrations' ] ); // si tu veux garder export coté handler, sinon tu peux supprimer
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
 
@@ -28,7 +29,61 @@ class Registrations_Admin {
             'wp-etik-registrations',
             [ $this, 'page_events_list' ]
         );
+
+        // Masquer "Ajouter un événement" (sous-menu de "Événements")
+        remove_submenu_page('edit.php?post_type=etik_event', 'post-new.php?post_type=etik_event');
+
     }
+
+
+    public function wp_etik_reorganize_admin_menu() {
+        global $submenu;
+
+        $post_type = 'etik_event'; // ⚠️ à adapter si différent
+        $events_menu_key = "edit.php?post_type={$post_type}";
+
+        if (!isset($submenu[$events_menu_key])) {
+            return;
+        }
+
+        $menu_items = $submenu[$events_menu_key];
+        $new_menu = [];
+
+        // Extraire les items par type (regex sur [2])
+        foreach ($menu_items as $item) {
+            $slug = $item[2];
+
+            if ($slug === $events_menu_key) {
+                $new_menu['events'] = $item;
+            } elseif (strpos($slug, 'wp-etik-registrations') !== false) {
+                $new_menu['registrations'] = $item;
+            } elseif (strpos($slug, 'wp-etik-prestation') !== false) {
+                $new_menu['prestations'] = $item;
+            } elseif (strpos($slug, 'wp-etik-reservations') !== false) {
+                $new_menu['reservations'] = $item;
+            } elseif (strpos($slug, 'wp-etik-parametres') !== false) {
+                $new_menu['params'] = $item;
+            }
+        }
+
+        // Trier par ordre logique
+        $ordered_keys = ['events', 'registrations', 'prestations', 'reservations', 'params'];
+        $sorted_menu = [];
+
+        foreach ($ordered_keys as $key) {
+            if (isset($new_menu[$key])) {
+                $sorted_menu[] = $new_menu[$key];
+            }
+        }
+
+        // Remplacer le menu
+        $submenu[$events_menu_key] = $sorted_menu;
+
+        // Masquer "Ajouter un événement"
+        remove_submenu_page($events_menu_key, 'post-new.php?post_type=' . $post_type);
+    }
+
+
 
     public function enqueue_assets( $hook ) {
         // limiter au bon hook/page

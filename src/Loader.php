@@ -10,7 +10,7 @@ use WP_Error;
 class Loader {
     public function run() {
 
-        // Charger webhooks.php AVANT rest_api_init
+        // Charge webhooks.php AVANT rest_api_init
         require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Stripe_Settings.php';
         require_once WP_ETIK_PLUGIN_DIR . 'includes/webhooks.php';
 
@@ -27,6 +27,12 @@ class Loader {
         add_action('admin_enqueue_scripts', [ $this, 'admin_assets' ]);
         add_action('wp_enqueue_scripts', [ $this, 'public_assets' ]);
         add_shortcode('wp_etik_payment_return', [$this, 'wp_etik_payment_return_shortcode']);
+        
+        // Charge les prestations
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Prestation_Settings.php';
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Prestation_Meta.php';
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Prestation_Closures.php';
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Prestation_Reservation_List.php';
     }
 
 
@@ -48,6 +54,24 @@ class Loader {
         $inscriptions = new Frontend_Inscription();
         $inscriptions->init();
 
+        // Charger les prestations
+        if ( is_admin() && current_user_can( 'manage_options' ) ) {
+            $prestation_settings = new \WP_Etik\Admin\Prestation_Settings();
+            $prestation_settings->init();
+        }
+
+        if ( is_admin() && current_user_can( 'manage_options' ) ) {
+            $prestation_meta = new \WP_Etik\Admin\Prestation_Meta();
+            $prestation_meta->init();
+
+            $prestation_closures = new \WP_Etik\Admin\Prestation_Closures();
+            $prestation_closures->init();
+
+            $prestation_reservation_list = new \WP_Etik\Admin\Prestation_Reservation_List();
+            $prestation_reservation_list->init();
+        }
+
+        // enregistrement et paiement
         if ( is_admin() && current_user_can( 'manage_options' ) ) {
 
 
