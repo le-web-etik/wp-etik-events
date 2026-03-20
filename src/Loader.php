@@ -1,12 +1,19 @@
 <?php
 namespace WP_Etik;
 
+defined('ABSPATH') || exit;
+
 use WP_Error;
 
 // fichier : wp-etik-events/src/Loader.php
 
 class Loader {
     public function run() {
+
+        // Charger webhooks.php AVANT rest_api_init
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Stripe_Settings.php';
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/webhooks.php';
+
         spl_autoload_register( function($class){
             $prefix = __NAMESPACE__ . '\\';
             if (strpos($class, $prefix) !== 0) return;
@@ -19,6 +26,7 @@ class Loader {
         add_action('plugins_loaded', [ $this, 'plugins_loaded' ], 15);
         add_action('admin_enqueue_scripts', [ $this, 'admin_assets' ]);
         add_action('wp_enqueue_scripts', [ $this, 'public_assets' ]);
+        add_shortcode('wp_etik_payment_return', [$this, 'wp_etik_payment_return_shortcode']);
     }
 
 
@@ -40,7 +48,6 @@ class Loader {
         $inscriptions = new Frontend_Inscription();
         $inscriptions->init();
 
-
         if ( is_admin() && current_user_can( 'manage_options' ) ) {
 
 
@@ -48,7 +55,7 @@ class Loader {
             $registrations = new \WP_Etik\Admin\Registrations_Admin();
             $registrations->init();
 
-            //require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Stripe_Settings.php';
+            require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Stripe_Settings.php';
             require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Payments/Payments_Settings.php';
 
             // Initialise la page de réglages Paiements (Stripe + Mollie)
@@ -116,7 +123,7 @@ class Loader {
 
     public function admin_assets() {
 
-        wp_enqueue_style('etik-admin', WP_ETIK_PLUGIN_URL . 'assets/css/admin.css');
+        wp_enqueue_style('etik-admin', WP_ETIK_PLUGIN_URL . 'assets/css/admin.css', [], '1.0');
         wp_enqueue_script('etik-admin', WP_ETIK_PLUGIN_URL . 'assets/js/admin.js', ['jquery','jquery-ui-datepicker'], false, true);
         wp_enqueue_script('jquery-ui-datepicker');
         wp_enqueue_style('jquery-ui-css','https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css');
@@ -175,5 +182,51 @@ class Loader {
         if ( get_option('wp_etik_hcaptcha_sitekey') ) {
             wp_enqueue_script('hcaptcha', 'https://hcaptcha.com/1/api.js', [], null, true);
         }
+    }
+
+    /**
+     * Shortcode pour afficher le retour de paiement
+     */
+    function wp_etik_payment_return_shortcode() {
+        if ( ! isset( $_GET['status'] ) ) {
+            return '<div class="notice notice-warning"><p>⚠️ Paramètre manquant. Veuillez contacter le support.</p></div>';
+        }
+
+        $status = sanitize_key( $_GET['status'] );
+        //$msg = isset( $_GET['msg'] ) ? urldecode( $_GET['msg'] ) : '';
+        $msg = '';
+
+        // Définir les messages par défaut selon le statut
+        $default_messages = [
+            'success' => '✅ Paiement réussi. Votre inscription est confirmée.',
+            'cancel'  => '❌ Paiement annulé. Votre réservation reste en attente.',
+            'error'   => '⚠️ Une erreur est survenue. Veuillez contacter le support.',
+        ];
+
+        $message = $msg ?: $default_messages[$status] ?? $default_messages['error'];
+
+        // Couleur et icône selon le statut
+        $class = '';
+        $icon = '';
+
+        if ( $status === 'success' ) {
+            $class = 'notice-success';
+            $icon = 'dashicons-yes';
+        } elseif ( $status === 'cancel' ) {
+            $class = 'notice-error';
+            $icon = 'dashicons-no-alt';
+        } else {
+            $class = 'notice-warning';
+            $icon = 'dashicons-warning';
+        }
+
+        // HTML du message
+        $output = '<div class="notice ' . esc_attr( $class ) . ' is-dismissible" style="padding:20px;max-width:600px;margin:20px auto;text-align:center;">';
+        //$output .= '<span class="dashicons ' . esc_attr( $icon ) . '" style="font-size:30px;margin-bottom:10px;display:block;"></span>';
+        $output .= '<p style="font-size:16px;margin:0;">' . esc_html( $message ) . '</p>';
+        $output .= '<a href="' . esc_url( home_url() ) . '" class="button button-primary" style="margin-top:20px;">Retour à l\'accueil</a>';
+        $output .= '</div>';
+
+        return $output;
     }
 }

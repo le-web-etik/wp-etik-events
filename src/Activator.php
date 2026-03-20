@@ -1,17 +1,23 @@
 <?php
 namespace WP_Etik;
 
+defined('ABSPATH') || exit;
+
 class Activator {
     public static function activate() {
         // role
-        if ( ! get_role('client_web_etik') ) {
+        if ( ! get_role('client_web_etik') && current_user_can('manage_options') ) {
             add_role('client_web_etik', 'Client Web Etik', ['read' => true, 'edit_posts' => false]);
         }
 
         // register CPT before flushing
         $cpt = new CPT_Event();
         $cpt->register();
-        flush_rewrite_rules();
+
+        if ( get_option( 'etik_plugin_activated' ) !== 'yes' ) {
+            flush_rewrite_rules();
+            update_option( 'etik_plugin_activated', 'yes' );
+        }
 
         // create table now (executed during activation)
         global $wpdb;
@@ -32,6 +38,9 @@ class Activator {
             token VARCHAR(191) NULL,
             token_expires DATETIME NULL,
             registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            payment_session_id VARCHAR(255) NULL,  
+            amount INT NULL,                    
+            reserved_at DATETIME NULL,         
             PRIMARY KEY (id),
             UNIQUE KEY event_user_unique (event_id, user_id),
             KEY event_idx (event_id),
@@ -40,24 +49,6 @@ class Activator {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql );
-
-        //---------------------------------------------------------------------
-        // Ensure additional columns exist (add only missing ones)
-        $cols_to_ensure = [
-            "ADD COLUMN {payment_session_id VARCHAR(255) NULL}",
-            "ADD COLUMN {amount INT NULL}",
-            "ADD COLUMN {reserved_at DATETIME NULL}",
-        ];
-
-        $col = 'payment_session_id';
-        $missing = [];
-        $exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table_name} LIKE %s", $col ) );
-        if ( empty( $exists ) ) {
-            if ( ! empty( $missing ) ) {
-                $alter_sql = "ALTER TABLE {$table_name} " . implode( ', ', $cols_to_ensure );
-                $wpdb->query( $alter_sql );
-            }
-        }
         
     }
 

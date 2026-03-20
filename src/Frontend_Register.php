@@ -1,6 +1,8 @@
 <?php
 namespace WP_Etik;
 
+defined('ABSPATH') || exit;
+
 class Frontend_Register {
     public function init() {
         add_shortcode('etik_register_form', [$this, 'render_form']);

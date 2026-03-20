@@ -49,7 +49,7 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
     $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
 
     // récupérer webhook secret (décrypté) via ta classe de settings
-    if ( ! class_exists('\\WP_Etik\\Stripe_Settings') ) {
+    if ( ! class_exists('\\WP_Etik\\Admin\\Stripe_Settings') ) {
         return new \WP_REST_Response('Stripe settings missing', 500);
     }
     $keys = \WP_Etik\Admin\Stripe_Settings::get_keys();
@@ -73,6 +73,9 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
         if ( $session ) {
             $ins_id = intval( $session['metadata']['inscription_id'] ?? 0 );
             $session_id = sanitize_text_field( $session['id'] ?? '' );
+            $email = sanitize_email( $session['customer_details']['email'] ?? '' ); // si disponible
+            $customer_name = sanitize_text_field( $session['customer_details']['name'] ?? '' );
+
             // si metadata present, on met à jour par id
             if ( $ins_id ) {
                 $wpdb->update(
@@ -85,6 +88,15 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
                     [ '%s', '%s' ],
                     [ '%d' ]
                 );
+
+                // Envoyer l'e-mail de confirmation
+                if ( ! empty( $email ) ) {
+                    wp_etik_send_confirmation_email_after_payment( $ins_id, $email, $customer_name );
+
+                    // Envoyer une notification à l'admin
+                    wp_etik_send_admin_notification_email( $ins_id, $email, $customer_name );
+                }
+
             } elseif ( $session_id ) {
                 // fallback : chercher par payment_session_id
                 $wpdb->update(
@@ -94,9 +106,19 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
                     [ '%s' ],
                     [ '%s' ]
                 );
+
+                // Récupérer l'email depuis la base
+                $inscription = $wpdb->get_row( $wpdb->prepare( "SELECT email FROM {$table} WHERE payment_session_id = %s LIMIT 1", $session_id ), ARRAY_A );
+                if ( ! empty( $inscription['email'] ) ) {
+                    wp_etik_send_confirmation_email_after_payment( $inscription['id'], $inscription['email'], '' );
+
+                    // Envoyer une notification à l'admin
+                    wp_etik_send_admin_notification_email( $inscription['id'], $inscription['email'], $customer_name );
+                }
             }
         }
     } elseif ( in_array($type, ['checkout.session.expired', 'checkout.session.async_payment_failed'], true) ) {
+        
         $session = $event['data']['object'] ?? null;
         if ( $session ) {
             $session_id = sanitize_text_field( $session['id'] ?? '' );
@@ -110,153 +132,118 @@ function handle_stripe_webhook( \WP_REST_Request $request ) {
                 );
             }
         }
+
+        // Rediriger vers la page avec statut 'error'
+        $error_url = add_query_arg( [
+            'status' => 'error',
+            'msg' => urlencode( 'Le paiement a échoué. Veuillez contacter le support.' ),
+        ], wp_etik_get_payment_return_url() );
+
+        // Optionnel : rediriger via JS ou PHP
+        wp_safe_redirect( $error_url );
+        exit;
     }
 
     return new \WP_REST_Response('ok', 200);
 }
 
 /**
- * Handler webhook Stripe (utilise stripe-php)
- * Assure : vérification signature, idempotence, fallback par session id.
+ * Envoyer un e-mail de confirmation après paiement
+ *
+ * @param int    $inscription_id
+ * @param string $email
+ * @param string $customer_name
  */
-function lwe_stripe_webhook_handler( WP_REST_Request $request ) {
+function wp_etik_send_confirmation_email_after_payment( $inscription_id, $email, $customer_name = '' ) {
     global $wpdb;
-    $ins_table = $wpdb->prefix . 'etik_inscriptions';
+    $table = $wpdb->prefix . 'etik_inscriptions';
 
-    $payload = $request->get_body();
-    $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
+    $inscription = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $inscription_id ), ARRAY_A );
 
-    // Récupérer webhook secret via ta fonction/setting
-    if ( ! function_exists('lwe_get_stripe_keys') ) {
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('lwe_stripe_webhook_handler: lwe_get_stripe_keys() missing');
-        }
-        return new WP_REST_Response('Stripe settings missing', 500);
+    if ( ! $inscription ) {
+        return;
     }
 
-    $keys = lwe_get_stripe_keys();
-    $endpoint_secret = $keys['webhook'] ?? '';
+    $event_id = intval( $inscription['event_id'] );
+    $event_title = get_the_title( $event_id );
 
-    if ( empty( $endpoint_secret ) ) {
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('lwe_stripe_webhook_handler: webhook secret not configured');
-        }
-        return new WP_REST_Response('Webhook secret not configured', 500);
-    }
+    $subject = "✅ Confirmation de votre inscription à {$event_title}";
 
-    // Vérifier que stripe-php est disponible
-    if ( ! class_exists('\Stripe\Webhook') ) {
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('lwe_stripe_webhook_handler: stripe-php library not loaded');
-        }
-        return new WP_REST_Response('Stripe library missing', 500);
-    }
+    $message = '
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h2 style="color: #46b450;">✅ Confirmation d\'inscription</h2>
+                <p>Bonjour ' . esc_html( $customer_name ?: $inscription['first_name'] ) . ',</p>
+                <p>Merci pour votre paiement ! Votre inscription à la formation <strong>' . esc_html( $event_title ) . '</strong> est confirmée.</p>
+                <p>Vous recevrez un rappel quelques jours avant l\'événement.</p>
+                
+                <p>À bientôt,<br>L\'équipe Le Web Etik</p>
+            </div>
+        </body>
+    </html>
+    ';
 
-    // Vérification de la signature et construction de l'événement
-    try {
-        $event = \Stripe\Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
-    } catch (\UnexpectedValueException $e) {
-        // payload invalide
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('Stripe webhook invalid payload: ' . $e->getMessage());
-        }
-        return new WP_REST_Response('Invalid payload', 400);
-    } catch (\Stripe\Exception\SignatureVerificationException $e) {
-        // signature invalide
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('Stripe webhook signature verification failed: ' . $e->getMessage());
-        }
-        return new WP_REST_Response('Invalid signature', 400);
-    } catch (\Exception $e) {
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('Stripe webhook error: ' . $e->getMessage());
-        }
-        return new WP_REST_Response('Webhook error', 400);
-    }
+    //<p>Pour accéder à votre espace, <a href="' . esc_url( home_url( '/espace-client' ) ) . '">cliquez ici</a>.</p>
 
-    // Traiter l'événement
-    $type = $event->type ?? '';
-    $object = $event->data->object ?? null;
+    $headers = [
+        'Content-Type: text/html; charset=UTF-8',
+        'From: Le Web Etik <reservation@lewebetik.fr>'
+    ];
 
-    if ( ! $object ) {
-        return new WP_REST_Response('No object in event', 400);
-    }
+    $sent = wp_mail( $email, $subject, $message, $headers );
 
-    // Helper pour mettre à jour l'inscription de façon idempotente
-    $update_inscription_by_id = function( int $ins_id, array $data ) use ( $wpdb, $ins_table ) {
-        if ( $ins_id <= 0 ) return false;
-
-        // Récupérer statut actuel pour éviter downgrades
-        $current = $wpdb->get_row( $wpdb->prepare( "SELECT id, status FROM {$ins_table} WHERE id = %d", $ins_id ), ARRAY_A );
-        if ( ! $current ) return false;
-
-        // Si déjà confirmé, ne rien faire
-        if ( isset($current['status']) && $current['status'] === 'confirmed' && ( $data['status'] ?? '' ) !== 'confirmed' ) {
-            return true;
-        }
-
-        $wpdb->update( $ins_table, $data, [ 'id' => $ins_id ], array_fill(0, count($data), '%s'), [ '%d' ] );
-        return true;
-    };
-
-    // Helper fallback : update by payment_session_id
-    $update_inscription_by_session = function( string $session_id, array $data ) use ( $wpdb, $ins_table ) {
-        if ( empty($session_id) ) return false;
-        $current = $wpdb->get_row( $wpdb->prepare( "SELECT id, status FROM {$ins_table} WHERE payment_session_id = %s", $session_id ), ARRAY_A );
-        if ( ! $current ) return false;
-        if ( isset($current['status']) && $current['status'] === 'confirmed' && ( $data['status'] ?? '' ) !== 'confirmed' ) {
-            return true;
-        }
-        $wpdb->update( $ins_table, $data, [ 'payment_session_id' => $session_id ], array_fill(0, count($data), '%s'), [ '%s' ] );
-        return true;
-    };
-
-    // Main switch
-    if ( $type === 'checkout.session.completed' ) {
-        $session = $object;
-        $ins_id = intval( $session->metadata->inscription_id ?? 0 );
-        $session_id = sanitize_text_field( $session->id ?? '' );
-
-        $data = [
-            'status' => 'confirmed',
-            'payment_session_id' => $session_id,
-        ];
-
-        $ok = false;
-        if ( $ins_id ) {
-            $ok = $update_inscription_by_id( $ins_id, $data );
-        }
-        if ( ! $ok && $session_id ) {
-            $ok = $update_inscription_by_session( $session_id, $data );
-        }
-
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('Stripe webhook checkout.session.completed processed for session ' . $session_id . ' ins_id=' . ($ins_id ?: 'n/a') );
-        }
-    } elseif ( in_array( $type, [ 'checkout.session.expired', 'checkout.session.async_payment_failed' ], true ) ) {
-        $session = $object;
-        $ins_id = intval( $session->metadata->inscription_id ?? 0 );
-        $session_id = sanitize_text_field( $session->id ?? '' );
-
-        $data = [ 'status' => 'cancelled' ];
-
-        $ok = false;
-        if ( $ins_id ) {
-            $ok = $update_inscription_by_id( $ins_id, $data );
-        }
-        if ( ! $ok && $session_id ) {
-            $ok = $update_inscription_by_session( $session_id, $data );
-        }
-
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('Stripe webhook session failed/expired for session ' . $session_id . ' ins_id=' . ($ins_id ?: 'n/a') );
-        }
+    if ( ! $sent ) {
+        error_log( "[WP-Etik] Email not sent to {$email} for inscription {$inscription_id}" );
     } else {
-        // autres événements ignorés mais renvoyer 200
-        if ( defined('WP_DEBUG') && WP_DEBUG ) {
-            error_log('Stripe webhook ignored event type: ' . $type);
-        }
+        error_log( "[WP-Etik] Email sent to {$email} for inscription {$inscription_id}" );
+    }
+}
+
+
+/**
+ * Envoyer une notification par e-mail à l'administrateur du site lors d'une nouvelle réservation
+ *
+ * @param int    $inscription_id
+ * @param string $customer_email
+ * @param string $customer_name
+ * @param string $event_title
+ */
+function wp_etik_send_admin_notification_email( $inscription_id, $customer_email, $customer_name = '', $event_title = '' ) {
+    $admin_email = get_option( 'admin_email' ); // Récupère l'email admin configuré dans WordPress
+    if ( ! $admin_email ) {
+        error_log( '[WP-Etik] Admin email not set.' );
+        return;
     }
 
-    return new WP_REST_Response('ok', 200);
+    $subject = "🔔 Nouvelle réservation confirmée : {$event_title}";
+
+    $message = '
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+            <h2 style="color: #0073aa;">🔔 Nouvelle réservation confirmée</h2>
+            <p><strong>Événement :</strong> ' . esc_html( $event_title ) . '</p>
+            <p><strong>Client :</strong> ' . esc_html( $customer_name ?: 'Non renseigné' ) . '</p>
+            <p><strong>Email :</strong> ' . esc_html( $customer_email ) . '</p>
+            <p><strong>ID de réservation :</strong> #' . intval( $inscription_id ) . '</p>
+            <p><a href="' . esc_url( admin_url( 'admin.php?page=etik-inscriptions&id=' . $inscription_id ) ) . '">Voir la réservation dans l’admin</a></p>
+            <p>Cette notification a été envoyée automatiquement par Le Web Etik.</p>
+        </div>
+    </body>
+    </html>
+    ';
+
+    $headers = [
+        'Content-Type: text/html; charset=UTF-8',
+        'From: Le Web Etik <reservation@lewebetik.fr>'
+    ];
+
+    $sent = wp_mail( $admin_email, $subject, $message, $headers );
+
+    if ( ! $sent ) {
+        error_log( "[WP-Etik] Admin email not sent for inscription {$inscription_id}" );
+    } else {
+        error_log( "[WP-Etik] Admin email sent for inscription {$inscription_id}" );
+    }
 }
