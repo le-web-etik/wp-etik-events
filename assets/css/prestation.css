@@ -32,3 +32,68 @@
     color: #fff;
     font-weight: bold;
 }
+
+/*****************************************************************************/
+/* Modale */
+.etik-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+
+.etik-modal[aria-hidden="false"] {
+    display: flex;
+}
+
+.etik-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+}
+
+.etik-modal-dialog {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 540px;
+    margin: 16px;
+}
+
+.etik-modal-content {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: 0 20px 48px rgba(8,12,20,0.18);
+}
+
+.etik-modal-close {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    background: transparent;
+    border: 0;
+    font-size: 22px;
+    cursor: pointer;
+}
+
+.etik-form-actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.etik-btn {
+    background: #0b7a4b;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 0;
+    cursor: pointer;
+}
+
+.etik-btn:hover {
+    background: #0a6941;
+}

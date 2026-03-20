@@ -75,4 +75,66 @@ jQuery(document).ready(function($) {
             } catch(e){}
         });
     });
+
+    // Gérer les onglets
+    $('.etik-tab').on('click', function() {
+        var tab = $(this).data('tab');
+        $('.etik-tab').removeClass('active');
+        $(this).addClass('active');
+        $('.etik-panel').removeClass('active');
+        $('.etik-panel[data-panel="' + tab + '"]').addClass('active');
+    });
+
+    // Gérer la modale
+    $('#add-prestation-btn').on('click', function() {
+        $('#etik-prestation-modal').attr('aria-hidden', 'false');
+    });
+
+    $('.etik-modal-close, .etik-modal-backdrop').on('click', function() {
+        $('#etik-prestation-modal').attr('aria-hidden', 'true');
+        $('#etik-prestation-form')[0].reset();
+        $('.etik-feedback').hide();
+    });
+
+    // Gérer le formulaire
+    $('#etik-prestation-form').on('submit', function(e) {
+        e.preventDefault();
+
+        var $form = $(this);
+        var $modal = $form.closest('.etik-modal');
+        var $feedback = $modal.find('.etik-feedback');
+
+        // Récupérer les données
+        var data = {
+            action: 'lwe_create_prestation',
+            post_title: $form.find('input[name="post_title"]').val(),
+            post_content: $form.find('textarea[name="post_content"]').val(),
+            etik_prestation_color: $form.find('input[name="etik_prestation_color"]').val(),
+            etik_prestation_price: $form.find('input[name="etik_prestation_price"]').val(),
+            etik_prestation_payment_required: $form.find('input[name="etik_prestation_payment_required"]').is(':checked') ? '1' : '0',
+            etik_prestation_max_place: $form.find('input[name="etik_prestation_max_place"]').val(),
+            nonce: wp_create_nonce('wp_etik_prestation_save')
+        };
+
+        // Désactiver le bouton
+        var $submit = $form.find('button[type="submit"]').prop('disabled', true);
+        $feedback.show().removeClass('success error').text('Enregistrement en cours...');
+
+        $.post(ajaxurl, data, function(resp) {
+            $submit.prop('disabled', false);
+            if (resp.success) {
+                $feedback.removeClass('error').addClass('success').text('Prestation créée avec succès.');
+                setTimeout(function() {
+                    $('#etik-prestation-modal').attr('aria-hidden', 'true');
+                    // Rafraîchir la liste (optionnel)
+                    location.reload();
+                }, 1500);
+            } else {
+                $feedback.removeClass('success').addClass('error').text(resp.data.message || 'Erreur lors de la création.');
+            }
+        }).fail(function() {
+            $submit.prop('disabled', false);
+            $feedback.removeClass('success').addClass('error').text('Erreur réseau. Réessayez.');
+        });
+    });
 });

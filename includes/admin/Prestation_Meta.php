@@ -27,22 +27,33 @@ class Prestation_Meta {
         add_meta_box( 'etik_prestation_meta', __( 'Détails prestation', 'wp-etik-events' ), [ $this, 'meta_box_html' ], 'etik_prestation', 'normal', 'high' );
     }
 
-    public function meta_box_html( $post ) {
-        // Récupération des metas existantes
-        $color = get_post_meta( $post->ID, 'etik_prestation_color', true );
-        $price = get_post_meta( $post->ID, 'etik_prestation_price', true );
-        $payment_required = get_post_meta( $post->ID, 'etik_prestation_payment_required', true );
-        $max_place = get_post_meta( $post->ID, 'etik_prestation_max_place', true );
+    public function meta_box_html( $post = null ) {
+        $color = $post ? get_post_meta( $post->ID, 'etik_prestation_color', true ) : '';
+        $price = $post ? get_post_meta( $post->ID, 'etik_prestation_price', true ) : '';
+        $payment_required = $post ? get_post_meta( $post->ID, 'etik_prestation_payment_required', true ) : '';
+        $max_place = $post ? get_post_meta( $post->ID, 'etik_prestation_max_place', true ) : '';
 
         wp_nonce_field( 'etik_prestation_save_meta', 'etik_prestation_meta_nonce' );
         ?>
         <div class="etik-meta-grid">
             <div class="etik-meta-col">
                 <div class="etik-meta-field">
+                    <label><?php _e( 'Nom', 'wp-etik-events' ); ?></label>
+                    <input type="text" name="post_title" value="<?php echo $post ? esc_attr( $post->post_title ) : ''; ?>" required />
+                </div>
+
+                <div class="etik-meta-field">
+                    <label><?php _e( 'Description', 'wp-etik-events' ); ?></label>
+                    <textarea name="post_content" rows="5"><?php echo $post ? esc_textarea( $post->post_content ) : ''; ?></textarea>
+                </div>
+
+                <div class="etik-meta-field">
                     <label><?php _e( 'Couleur', 'wp-etik-events' ); ?></label>
                     <input type="text" name="etik_prestation_color" value="<?php echo esc_attr( $color ); ?>" class="color-picker" />
                 </div>
+            </div>
 
+            <div class="etik-meta-col">
                 <div class="etik-meta-field">
                     <label><?php _e( 'Prix', 'wp-etik-events' ); ?></label>
                     <input type="number" step="0.01" name="etik_prestation_price" value="<?php echo esc_attr( $price ); ?>" />
@@ -55,9 +66,7 @@ class Prestation_Meta {
                         <?php _e( 'Cocher si le paiement est requis pour valider l\'inscription', 'wp-etik-events' ); ?>
                     </div>
                 </div>
-            </div>
 
-            <div class="etik-meta-col">
                 <div class="etik-meta-field">
                     <label><?php _e( 'Places maximum par créneau', 'wp-etik-events' ); ?></label>
                     <input type="number" name="etik_prestation_max_place" value="<?php echo esc_attr( $max_place ); ?>" min="1" />

@@ -27,9 +27,6 @@ if ( file_exists( plugin_dir_path(__FILE__) . 'includes/admin/duplicate-event.ph
     require_once plugin_dir_path(__FILE__) . 'includes/admin/duplicate-event.php';
 }
 
-// includes/admin/class-stripe-settings.php
-// require_once plugin_dir_path(__FILE__) . 'includes/admin/class-stripe-settings.php';
-
 use WP_Etik\Loader;
 
 //define("WP_ETIK_HCAPTCHA_SECRET",     "");

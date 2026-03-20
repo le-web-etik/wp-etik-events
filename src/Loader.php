@@ -151,7 +151,12 @@ class Loader {
         wp_enqueue_script('etik-admin', WP_ETIK_PLUGIN_URL . 'assets/js/admin.js', ['jquery','jquery-ui-datepicker'], false, true);
         wp_enqueue_script('jquery-ui-datepicker');
         wp_enqueue_style('jquery-ui-css','https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css');
+        
+        wp_enqueue_style('wp-etik-modal', WP_ETIK_PLUGIN_URL . 'assets/css/etik-modal.css', [], '1.1');
 
+        wp_enqueue_style( 'wp-etik-prestation-admin', WP_ETIK_PLUGIN_URL . 'assets/css/prestation.css', [], '1.0' );
+        wp_enqueue_script( 'wp-etik-prestation-admin', WP_ETIK_PLUGIN_URL . 'assets/js/prestation.js', ['jquery'], '1.0', true );
+        wp_localize_script( 'wp-etik-prestation-admin', 'ajaxurl', admin_url('admin-ajax.php') );
         
         // ne charger que dans le Visual Builder (paramètre GET utilisé par Divi)
         if ( empty($_GET['et_fb']) && empty($_GET['et_fb_in_iframe']) && empty($_GET['et_fb_preview']) ) {

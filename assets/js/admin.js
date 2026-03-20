@@ -86,5 +86,15 @@ jQuery(function($){
         });
     });
 
+    //----------------------------------------------------------------------------------------------
+    // Gérer les onglets
+    $('.etik-tab').on('click', function() {
+        var tab = $(this).data('tab');
+        $('.etik-tab').removeClass('active');
+        $(this).addClass('active');
+        $('.etik-panel').removeClass('active');
+        $('.etik-panel[data-panel="' + tab + '"]').addClass('active');
+    });
+
   
 });

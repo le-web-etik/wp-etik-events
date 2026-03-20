@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'wp_ajax_nopriv_lwe_create_prestation_reservation', __NAMESPACE__ . '\\lwe_create_prestation_reservation' );
 add_action( 'wp_ajax_lwe_create_prestation_reservation', __NAMESPACE__ . '\\lwe_create_prestation_reservation' );
+add_action( 'wp_ajax_lwe_create_prestation', __NAMESPACE__ . '\\lwe_create_prestation' );
 
 function lwe_create_prestation_reservation() {
     global $wpdb;
@@ -87,5 +88,54 @@ function lwe_create_prestation_reservation() {
         'status' => 'pending',
         'reservation_id' => $reservation_id,
         'message' => 'Réservation enregistrée. Un email de confirmation vous a été envoyé.'
+    ] );
+}
+
+
+
+function lwe_create_prestation() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( [ 'message' => 'Accès refusé' ] );
+    }
+
+    $nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+    if ( ! wp_verify_nonce( $nonce, 'wp_etik_prestation_save' ) ) {
+        wp_send_json_error( [ 'message' => 'Requête invalide (nonce).' ] );
+    }
+
+    $title = isset( $_POST['post_title'] ) ? sanitize_text_field( wp_unslash( $_POST['post_title'] ) ) : '';
+    $content = isset( $_POST['post_content'] ) ? wp_kses_post( wp_unslash( $_POST['post_content'] ) ) : '';
+    $color = isset( $_POST['etik_prestation_color'] ) ? sanitize_text_field( wp_unslash( $_POST['etik_prestation_color'] ) ) : '';
+    $price = isset( $_POST['etik_prestation_price'] ) ? floatval( $_POST['etik_prestation_price'] ) : 0;
+    $payment_required = isset( $_POST['etik_prestation_payment_required'] ) ? '1' : '0';
+    $max_place = isset( $_POST['etik_prestation_max_place'] ) ? intval( $_POST['etik_prestation_max_place'] ) : 1;
+
+    if ( empty( $title ) ) {
+        wp_send_json_error( [ 'message' => 'Le titre est requis.' ] );
+    }
+
+    // Créer la prestation
+    $post_id = wp_insert_post( [
+        'post_type' => 'etik_prestation',
+        'post_title' => $title,
+        'post_content' => $content,
+        'post_status' => 'publish',
+        'post_author' => get_current_user_id(),
+    ] );
+
+    if ( is_wp_error( $post_id ) ) {
+        wp_send_json_error( [ 'message' => 'Erreur lors de la création de la prestation.' ] );
+    }
+
+    // Enregistrer les métadonnées
+    update_post_meta( $post_id, 'etik_prestation_color', $color );
+    update_post_meta( $post_id, 'etik_prestation_price', $price );
+    update_post_meta( $post_id, 'etik_prestation_payment_required', $payment_required );
+    update_post_meta( $post_id, 'etik_prestation_max_place', $max_place );
+
+    wp_send_json_success( [
+        'message' => 'Prestation créée avec succès.',
+        'post_id' => $post_id,
+        'title' => $title,
     ] );
 }
