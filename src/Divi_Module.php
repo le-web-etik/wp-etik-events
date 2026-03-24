@@ -6,17 +6,21 @@ defined('ABSPATH') || exit;
 if ( ! class_exists('ET_Builder_Module') ) return;
 
 class Divi_Module extends \ET_Builder_Module {
-    
-    public $slug = 'etk_events';
-    public $vb_support = 'on';
+
+    public $slug       = 'etk_events';
+    public $vb_support = 'partial';
 
     public function init() {
-        $this->name = esc_html__('Etik Events','wp-etik-events');
+        $this->name = esc_html__( 'Etik Events', 'wp-etik-events' );
+
         $this->whitelisted_fields = [
             'title',
             'posts_number',
             'layout',
+            'col_number',
+            'image_mode',   // ← nouveau : card | full
             'show_image',
+            'image_height', // ← nouveau : hauteur en mode card
             'style_title_color',
             'style_title_size',
             'style_date_color',
@@ -29,25 +33,27 @@ class Divi_Module extends \ET_Builder_Module {
         ];
 
         $this->fields_defaults = [
-            'posts_number' => ['3'],
-            'show_image' => ['on'],
-            'layout' => ['grid'],
-            'style_title_color' => ['#000000'],
-            'style_title_size' => ['18px'],
-            'style_date_color' => ['#666666'],
-            'style_date_size' => ['14px'],
-            'style_price_color' => ['#000000'],
-            'style_price_size' => ['16px'],
-            'style_excerpt_color' => ['#333333'],
+            'posts_number'       => ['3'],
+            'show_image'         => ['on'],
+            'image_mode'         => ['card'],
+            'image_height'       => ['280px'],
+            'layout'             => ['grid'],
+            'col_number'         => ['3'],
+            'style_title_color'  => ['#000000'],
+            'style_title_size'   => ['18px'],
+            'style_date_color'   => ['#0c71c3'],
+            'style_date_size'    => ['14px'],
+            'style_price_color'  => ['#FC6B0D'],
+            'style_price_size'   => ['16px'],
+            'style_excerpt_color'=> ['#333333'],
             'style_excerpt_size' => ['14px'],
         ];
-        
-        // Déclarer l'onglet Style et ses toggles (apparaîtra dans le builder Divi)
+
         $this->settings_modal_toggles = [
             'general' => [
                 'toggles' => [
                     'content' => [
-                        'title' => esc_html__('Content', 'wp-etik-events'),
+                        'title'    => esc_html__( 'Contenu', 'wp-etik-events' ),
                         'priority' => 10,
                     ],
                 ],
@@ -55,15 +61,15 @@ class Divi_Module extends \ET_Builder_Module {
             'style' => [
                 'toggles' => [
                     'main_style' => [
-                        'title'    => esc_html__('Style', 'wp-etik-events'),
+                        'title'    => esc_html__( 'Style', 'wp-etik-events' ),
                         'priority' => 10,
                     ],
                     'media' => [
-                        'title' => esc_html__('Image', 'wp-etik-events'),
+                        'title'    => esc_html__( 'Image', 'wp-etik-events' ),
                         'priority' => 20,
                     ],
                     'title' => [
-                        'title' => esc_html__('Title', 'wp-etik-events'),
+                        'title'    => esc_html__( 'Titre', 'wp-etik-events' ),
                         'priority' => 30,
                     ],
                 ],
@@ -71,7 +77,7 @@ class Divi_Module extends \ET_Builder_Module {
             'advanced' => [
                 'toggles' => [
                     'custom_css' => [
-                        'title' => esc_html__('Custom CSS', 'wp-etik-events'),
+                        'title' => esc_html__( 'CSS personnalisé', 'wp-etik-events' ),
                     ],
                 ],
             ],
@@ -80,205 +86,212 @@ class Divi_Module extends \ET_Builder_Module {
 
     public function get_fields() {
         return [
+            // ── Contenu ───────────────────────────────────────────────────────
             'title' => [
-                'label' => esc_html__('Titre du bloc','wp-etik-events'),
-                'type' => 'text',
+                'label'            => esc_html__( 'Titre du bloc', 'wp-etik-events' ),
+                'type'             => 'text',
                 'option_category'  => 'configuration',
             ],
             'posts_number' => [
-                'label' => esc_html__('Nombre d\'événements','wp-etik-events'),
-                'type' => 'text',
+                'label'            => esc_html__( "Nombre d'événements", 'wp-etik-events' ),
+                'type'             => 'text',
                 'option_category'  => 'configuration',
             ],
             'layout' => [
-                'label' => esc_html__('Mise en page','wp-etik-events'),
-                'type' => 'select',
+                'label'            => esc_html__( 'Mise en page', 'wp-etik-events' ),
+                'type'             => 'select',
                 'option_category'  => 'configuration',
-                'options' => [
-                    'grid' => esc_html__('Grille','wp-etik-events'),
-                    'list' => esc_html__('Liste','wp-etik-events'),
+                'options'          => [
+                    'grid' => esc_html__( 'Grille', 'wp-etik-events' ),
+                    'list' => esc_html__( 'Liste',  'wp-etik-events' ),
                 ],
             ],
-            'show_image' => [
-                'label' => esc_html__('Afficher image a la une','wp-etik-events'),
-                'type' => 'yes_no_button',
+            'col_number' => [
+                'label'            => esc_html__( "Nombre de colone", 'wp-etik-events' ),
+                'type'             => 'text',
                 'option_category'  => 'configuration',
-                'options'          => array(
-					'on'  => et_builder_i18n( 'Yes' ),
-					'off' => et_builder_i18n( 'No' ),
-				),
             ],
+            
+
+            // ── Image ─────────────────────────────────────────────────────────
+            'show_image' => [
+                'label'            => esc_html__( "Afficher l'image à la une", 'wp-etik-events' ),
+                'type'             => 'yes_no_button',
+                'option_category'  => 'configuration',
+                'options'          => [
+                    'on'  => et_builder_i18n( 'Yes' ),
+                    'off' => et_builder_i18n( 'No' ),
+                ],
+            ],
+            'image_mode' => [
+                'label'            => esc_html__( "Mode d'affichage image", 'wp-etik-events' ),
+                'type'             => 'select',
+                'option_category'  => 'configuration',
+                'options'          => [
+                    'card' => esc_html__( 'Carte (image + contenu)', 'wp-etik-events' ),
+                    'full' => esc_html__( 'Full Picture (image seule, clic = inscription)', 'wp-etik-events' ),
+                ],
+                'description'      => esc_html__( 'En mode Full Picture, seule l\'image s\'affiche. Un clic dessus ouvre directement le formulaire d\'inscription.', 'wp-etik-events' ),
+            ],
+            'image_height' => [
+                'label'            => esc_html__( 'Hauteur image (ex: 320px, 50vh)', 'wp-etik-events' ),
+                'type'             => 'text',
+                'option_category'  => 'configuration',
+                'description'      => esc_html__( 'Mode Carte : hauteur fixe de l\'image (défaut : 280px). Mode Full Picture : laisser vide pour un ratio 16/9 automatique, ou saisir une valeur fixe (ex: 400px) pour forcer une hauteur.', 'wp-etik-events' ),
+            ],
+
+            // ── Style ─────────────────────────────────────────────────────────
             'style_title_color' => [
-                'label' => esc_html__('Couleur titre','wp-etik-events'),
-                'type' => 'color-alpha',
-                'custom_color'    => true,
+                'label'        => esc_html__( 'Couleur titre', 'wp-etik-events' ),
+                'type'         => 'color-alpha',
+                'custom_color' => true,
             ],
             'style_title_size' => [
-                'label' => esc_html__('Taille titre','wp-etik-events'),
-                'type' => 'text',
+                'label' => esc_html__( 'Taille titre', 'wp-etik-events' ),
+                'type'  => 'text',
             ],
             'style_date_color' => [
-                'label' => esc_html__('Couleur date','wp-etik-events'),
-                'type' => 'color-alpha',
-                'custom_color'    => true,
+                'label'        => esc_html__( 'Couleur date', 'wp-etik-events' ),
+                'type'         => 'color-alpha',
+                'custom_color' => true,
             ],
             'style_date_size' => [
-                'label' => esc_html__('Taille date','wp-etik-events'),
-                'type' => 'text',
+                'label' => esc_html__( 'Taille date', 'wp-etik-events' ),
+                'type'  => 'text',
             ],
             'style_price_color' => [
-                'label' => esc_html__('Couleur prix','wp-etik-events'),
-                'type' => 'color-alpha',
+                'label' => esc_html__( 'Couleur prix', 'wp-etik-events' ),
+                'type'  => 'color-alpha',
             ],
             'style_price_size' => [
-                'label' => esc_html__('Taille prix','wp-etik-events'),
-                'type' => 'text',
+                'label' => esc_html__( 'Taille prix', 'wp-etik-events' ),
+                'type'  => 'text',
             ],
             'style_excerpt_color' => [
-                'label' => esc_html__('Couleur description','wp-etik-events'),
-                'type' => 'color-alpha',
+                'label' => esc_html__( 'Couleur description', 'wp-etik-events' ),
+                'type'  => 'color-alpha',
             ],
             'style_excerpt_size' => [
-                'label' => esc_html__('Taille description','wp-etik-events'),
-                'type' => 'text',
+                'label' => esc_html__( 'Taille description', 'wp-etik-events' ),
+                'type'  => 'text',
             ],
             'custom_class' => [
-                'label' => esc_html__('Classe CSS personnalisée','wp-etik-events'),
-                'type' => 'text',
+                'label' => esc_html__( 'Classe CSS personnalisée', 'wp-etik-events' ),
+                'type'  => 'text',
             ],
         ];
     }
 
-    public function render($attrs, $content = null, $render_slug = null) {
-        // charge modal et asset
+    // =========================================================================
+    // RENDER
+    // =========================================================================
+
+    public function render( $attrs, $content = null, $render_slug = null ) {
+
+        // Active la modal globale
         \WP_Etik\Etik_Modal_Manager::mark_needed();
 
-        $posts_number = intval( $this->props['posts_number'] ?? 3 );
-        $layout = $this->props['layout'] ?? 'grid';
-        $show_image = ($this->props['show_image'] ?? 'on') === 'on';
+        // ── Lecture des props ─────────────────────────────────────────────────
+        $posts_number  = max( 1, intval( $this->props['posts_number'] ?? 3 ) );
 
-        $style_title_color = esc_attr($this->props['style_title_color'] ?? '#000');
-        $style_title_size = esc_attr($this->props['style_title_size'] ?? '18px');
-        $style_date_color = esc_attr($this->props['style_date_color'] ?? '#0c71c3');
-        $style_date_size = esc_attr($this->props['style_date_size'] ?? '14px');
-        $style_price_color = esc_attr($this->props['style_price_color'] ?? '#000');
-        $style_price_size = esc_attr($this->props['style_price_size'] ?? '16px');
-        $style_excerpt_color = esc_attr($this->props['style_excerpt_color'] ?? '#333');
-        $style_excerpt_size = esc_attr($this->props['style_excerpt_size'] ?? '14px');
-        $custom_class = esc_attr($this->props['custom_class'] ?? '');
+        
+        $layout        = $this->props['layout']      ?? 'grid';
+        $col_number  = max( 1, intval( $this->props['col_number'] ?? 3 ) );
+        $show_image    = ( $this->props['show_image'] ?? 'on' ) === 'on';
+        $image_mode    = $this->props['image_mode']  ?? 'card'; // 'card' | 'full'
+        // En mode full, la valeur par défaut est vide (l'aspect-ratio CSS prend le relais).
+        // En mode carte, on garde 280px si rien n'est saisi.
+        $raw_height   = trim( $this->props['image_height'] ?? '' );
+        $image_height = esc_attr(
+            $image_mode === 'full'
+                ? ( $raw_height !== '' ? $raw_height : '' )   // full : vide = aspect-ratio CSS
+                : ( $raw_height !== '' ? $raw_height : '280px' ) // carte : 280px par défaut
+        );
+        $custom_class  = esc_attr( $this->props['custom_class'] ?? '' );
 
-        /*$query = new \WP_Query([
-            'post_type' => 'etik_event',
-            'posts_per_page' => $posts_number,
-            'order'     => 'ASC',
-            'meta_key' => 'etik_start_date',
-            'orderby'   => 'meta_value',
-        ]);*/
+        $style_title_color   = esc_attr( $this->props['style_title_color']   ?? '#000' );
+        $style_title_size    = esc_attr( $this->props['style_title_size']    ?? '18px' );
+        $style_date_color    = esc_attr( $this->props['style_date_color']    ?? '#0c71c3' );
+        $style_date_size     = esc_attr( $this->props['style_date_size']     ?? '14px' );
+        $style_price_color   = esc_attr( $this->props['style_price_color']   ?? '#FC6B0D' );
+        $style_price_size    = esc_attr( $this->props['style_price_size']    ?? '16px' );
+        $style_excerpt_color = esc_attr( $this->props['style_excerpt_color'] ?? '#333' );
+        $style_excerpt_size  = esc_attr( $this->props['style_excerpt_size']  ?? '14px' );
 
-        $today = current_time( 'Y-m-d' ); // "YYYY-mm-dd"
-
-        $query = new \WP_Query([
+        // ── Requête événements futurs ─────────────────────────────────────────
+        $today = current_time( 'Y-m-d' );
+        $query = new \WP_Query( [
             'post_type'      => 'etik_event',
             'posts_per_page' => $posts_number,
             'order'          => 'ASC',
             'meta_key'       => 'etik_start_date',
             'orderby'        => 'meta_value',
-            'meta_query'     => [
-                [
-                    'key'     => 'etik_start_date',
-                    'value'   => $today,
-                    'compare' => '>',
-                    'type'    => 'DATE',
-                ],
-            ],
-        ]);
+            'meta_query'     => [ [
+                'key'     => 'etik_start_date',
+                'value'   => $today,
+                'compare' => '>=',
+                'type'    => 'DATE',
+            ] ],
+        ] );
 
+        $unique       = 'etik-' . uniqid();
+        $mode_class   = 'etik-mode-' . esc_attr( $image_mode );
+        $col_class    = 'etik-col-' . esc_attr( $col_number );
+        //col_number
 
-        $unique = uniqid('etik-events-');
+        // ── CSS scopé à cette instance ────────────────────────────────────────
+        $output  = '<style>';
 
-        $output = '<div class="etik-events ' . esc_attr($custom_class) . ' etik-layout-' . esc_attr($layout) . '" id="' . esc_attr($unique) . '">';
-
-        // inline style block scoped to this instance
-        $output .= '<style>';
-            $output .= '#' . $unique . ' .etik-title{ color:' . $style_title_color . '; font-size:' . $style_title_size . '; }';
-            $output .= '#' . $unique . ' .etik-date{ color:' . $style_date_color . '; font-size:' . $style_date_size . '; }';
-            $output .= '#' . $unique . ' .etik-price{ color:' . $style_price_color . '; font-size:' . $style_price_size . '; }';
-            $output .= '#' . $unique . ' .etik-excerpt{ color:' . $style_excerpt_color . '; font-size:' . $style_excerpt_size . '; }';
+        // Mode carte : hauteur fixe sur l'image
+        if ( $image_mode === 'card' && $image_height !== '' ) {
+            $output .= "#{$unique} .etik-thumb img { height:{$image_height}; }";
+        }
+        // Mode full : la hauteur est appliquée en inline style directement sur la balise <img>
+        // via render_full_card() → pas de CSS scopé nécessaire ici.
+        $output .= "#{$unique} .etik-title { color:{$style_title_color}; font-size:{$style_title_size}; }";
+        $output .= "#{$unique} .etik-date  { color:{$style_date_color};  font-size:{$style_date_size};  }";
+        $output .= "#{$unique} .etik-price { color:{$style_price_color}; font-size:{$style_price_size}; }";
+        $output .= "#{$unique} .etik-excerpt { color:{$style_excerpt_color}; font-size:{$style_excerpt_size}; }";
+        // Surcharge couleurs overlay full-picture avec les valeurs de style configurées
+        $output .= "#{$unique} .etik-overlay .etik-title { color:#ffffff; }";
+        $output .= "#{$unique} .etik-overlay .etik-date  { color:rgba(255,255,255,0.85); border-color:rgba(255,255,255,0.4); }";
+        $output .= "#{$unique} .etik-overlay .etik-price { color:#ffffff; border-color:rgba(255,255,255,0.6); }";
         $output .= '</style>';
 
-        while ($query->have_posts()) {
+        $output .= '<div class="etik-events ' . esc_attr( $custom_class ) . ' etik-layout-' . esc_attr( $layout ) . ' ' . $mode_class . ' ' . $col_class . '" id="' . esc_attr( $unique ) . '">';
+
+        if ( ! $query->have_posts() ) {
+            $output .= '<p class="etik-no-events">' . esc_html__( 'Aucun événement à venir.', 'wp-etik-events' ) . '</p>';
+        }
+
+        while ( $query->have_posts() ) {
             $query->the_post();
-            $id = get_the_ID();
-            $title = get_the_title();
-            $excerpt = get_the_excerpt();
+            $id          = get_the_ID();
+            $title       = get_the_title();
             $the_content = get_the_content();
-            $start = get_post_meta($id, 'etik_start_date', true);
-            $price = get_post_meta($id, 'etik_price', true);
+            $start       = get_post_meta( $id, 'etik_start_date', true );
+            $price       = get_post_meta( $id, 'etik_price', true );
+            $timestamp   = $start ? strtotime( $start ) : 0;
+            $date_label  = $timestamp ? date_i18n( 'l j M', $timestamp ) : '';
+            $price_label = ( $price !== '' && $price !== false ) ? esc_html( $price ) . '€' : '';
 
-            $output .= '<div class="etik-event etik-bis">';
+            // Data attributes communs pour le déclenchement modal
+            $data_attrs = sprintf(
+                'data-event="%s" data-title="%s"',
+                esc_attr( $id ),
+                esc_attr( $title )
+            );
 
-            // GESTION IMAGE
-            //if ($show_image && has_post_thumbnail()) {
-                //$output .= '<div class="etik-thumb">' . get_the_post_thumbnail($id,'medium') . '</div>';
-            //}
-            if ($show_image) {
-                if ( has_post_thumbnail($id) ) {
-                    $thumb_id = get_post_thumbnail_id($id);
-                    $src = wp_get_attachment_image_src($thumb_id, 'medium');
-                    $img = wp_get_attachment_image($thumb_id, 'large');
-                    if ($src && isset($src[0])) {
-                        //$output .= '<div class="etik-thumb"><img src="' . esc_url($src[0]) . '" alt="' . esc_attr(get_the_title($id)) . '" /></div>';
-                        $output .= '<div class="etik-thumb">'. $img .'</div>';
-                        
-                    } else {
-                        // fallback si wp_get_attachment_image_src échoue
-                        $output .= '<div class="etik-thumb"><img src="' . esc_url(get_stylesheet_directory_uri() . '/images/placeholder.png') . '" alt="" /></div>';
-                    }
-                }
+            // ── MODE FULL PICTURE ─────────────────────────────────────────────
+            if ( $image_mode === 'full' ) {
+                $output .= $this->render_full_card( $id, $title, $date_label, $price_label, $data_attrs, $show_image, $image_height );
+                continue;
             }
-            // body
-            $output .= '<div class="etik-body">';
 
-                $output .= '<div class="et_pb_text_2">';
-                    $timestamp = strtotime( esc_html($start) ); // ou get_the_date( 'U' ) etc.
-                    $output .= '<div class="etik-date">' . date_i18n( 'l j M', $timestamp ) . '</div>';
-                $output .= '</div>';
-
-                
-                $output .= '<div>';
-                    $output .= '<h3 class="etik-title">' . esc_html($title) . '</h3>';
-                    
-                    $output .= '<div class="etik-price">' . ($price !== '' ? esc_html($price) . '€ ' : '') . '</div>';
-                $output .= '</div>';
-
-                $output .= '<div class="etik-excerpt">';
-                    $output .= '<div class="etik-excerpt-content">';
-                        $output .=  $the_content ;
-                    $output .=  '</div>';
-                $output .=  '</div>';
-            
-            
-            $output .= '</div>';
-
-            $output .= '<div class="etik-footer">';
-
-            $output .= '<button type="button" class="etik-btn-link" style="display: none;">voir plus</button>';
-            // bouton + modal (insérer dans la boucle de render)
-            $output .= '<button type="button" class="etik-formation-btn" 
-                data-event="'.esc_attr($id).'" 
-                data-title="'.esc_attr($title).'" 
-                data-bs-target="#etik-global-modal">S\'inscrire</button>';
-
-            /*
-            $btn_id = $unique . '-formation-btn-' . get_the_ID();
-            $modal_id = $unique . '-formation-modal-' . get_the_ID();
-            $nonce = wp_create_nonce('wp_etik_inscription_nonce'); // ou utilisez global nonce localisé
-
-            $output .= '<button type="button" id="'.esc_attr($btn_id).'" class="etik-formation-btn" data-modal="#'.esc_attr($modal_id).'" data-event="'.esc_attr(get_the_ID()).'">S\'inscrire</button>';
-            */
-
-            $output .= '</div></div>';
-
+            // ── MODE CARTE (défaut) ───────────────────────────────────────────
+            $output .= $this->render_card(
+                $id, $title, $the_content, $date_label, $price_label, $data_attrs, $show_image
+            );
         }
 
         wp_reset_postdata();
@@ -286,8 +299,133 @@ class Divi_Module extends \ET_Builder_Module {
         return $output;
     }
 
-    /*public function render($attrs, $content = null, $render_slug = null) {
-        error_log('ETIK render start uid:' . uniqid() . ' post_count:' . (isset($this->props['posts_number']) ? intval($this->props['posts_number']) : 0));
-        return '<div class="etik-debug">ETIK MODULE RENDER TEST OK</div>';
-    }*/
+    // =========================================================================
+    // MODE FULL PICTURE
+    // Image seule = toute la carte. Clic sur l'image → modale inscription.
+    // Overlay titre + date + prix au hover.
+    // =========================================================================
+
+    private function render_full_card(
+        int    $id,
+        string $title,
+        string $date_label,
+        string $price_label,
+        string $data_attrs,
+        bool   $show_image,
+        string $image_height = ''  // ← valeur saisie dans Divi, vide = 100% (aspect-ratio CSS)
+    ) : string {
+
+        // ── Inline style sur l'img ────────────────────────────────────────────
+        // On applique height directement sur la balise <img> via wp_get_attachment_image().
+        // Si vide → pas de style inline, le CSS aspect-ratio prend le relais (100% naturel).
+        $img_attrs = [ 'class' => 'etik-thumb-full-img' ];
+        if ( $image_height !== '' ) {
+            $img_attrs['style'] = 'height:' . esc_attr( $image_height ) . ';width:100%;object-fit:cover;';
+        }
+
+        $img_html = '';
+        if ( $show_image && has_post_thumbnail( $id ) ) {
+            $img_html = wp_get_attachment_image(
+                get_post_thumbnail_id( $id ),
+                'large',
+                false,
+                $img_attrs
+            );
+        }
+
+        // Si pas d'image : placeholder coloré avec les infos
+        $has_img_class = $img_html ? 'has-image' : 'no-image';
+
+        $price_html = $price_label
+            ? '<span class="etik-price">' . esc_html( $price_label ) . '</span>'
+            : '';
+
+        $date_html = $date_label
+            ? '<div class="etik-date">' . esc_html( $date_label ) . '</div>'
+            : '';
+
+        $out  = '<div class="etik-event etik-event--full ' . esc_attr( $has_img_class ) . '">';
+
+        // La zone cliquable = toute la carte
+        $out .= '<button type="button"'
+              . ' class="etik-thumb-full etik-formation-btn-img"'
+              . ' ' . $data_attrs
+              . ' aria-label="' . esc_attr( sprintf( __( "S'inscrire à %s", 'wp-etik-events' ), $title ) ) . '">';
+
+        // Image
+        if ( $img_html ) {
+            $out .= $img_html;
+        }
+
+        // Overlay
+        $out .= '<div class="etik-overlay" aria-hidden="true">';
+        $out .= '<div class="etik-overlay-inner">';
+        $out .= $date_html;
+        $out .= '<h3 class="etik-title">' . esc_html( $title ) . '</h3>';
+        $out .= $price_html;
+        $out .= '<span class="etik-overlay-cta">'
+              . esc_html__( "S'inscrire →", 'wp-etik-events' )
+              . '</span>';
+        $out .= '</div></div>';
+
+        $out .= '</button>';
+        $out .= '</div>'; // .etik-event--full
+
+        return $out;
+    }
+
+    // =========================================================================
+    // MODE CARTE (comportement original, légèrement nettoyé)
+    // =========================================================================
+
+    private function render_card(
+        int    $id,
+        string $title,
+        string $the_content,
+        string $date_label,
+        string $price_label,
+        string $data_attrs,
+        bool   $show_image
+    ) : string {
+
+        $out = '<div class="etik-event">';
+
+        // Image
+        if ( $show_image && has_post_thumbnail( $id ) ) {
+            $img = wp_get_attachment_image( get_post_thumbnail_id( $id ), 'large' );
+            $out .= '<div class="etik-thumb">' . $img . '</div>';
+        }
+
+        // Body
+        $out .= '<div class="etik-body">';
+
+        $out .= '<div class="et_pb_text_2">';
+        if ( $date_label ) {
+            $out .= '<div class="etik-date">' . esc_html( $date_label ) . '</div>';
+        }
+        $out .= '</div>';
+
+        $out .= '<div>';
+        $out .= '<h3 class="etik-title">' . esc_html( $title ) . '</h3>';
+        if ( $price_label ) {
+            $out .= '<div class="etik-price">' . esc_html( $price_label ) . '</div>';
+        }
+        $out .= '</div>';
+
+        $out .= '<div class="etik-excerpt"><div class="etik-excerpt-content">' . $the_content . '</div></div>';
+
+        $out .= '</div>'; // .etik-body
+
+        // Footer
+        $out .= '<div class="etik-footer">';
+        $out .= '<button type="button" class="etik-btn-link" style="display:none;">voir plus</button>';
+        $out .= '<button type="button" class="etik-formation-btn" ' . $data_attrs . '>'
+              . esc_html__( "S'inscrire", 'wp-etik-events' )
+              . '</button>';
+        $out .= '</div>';
+
+        $out .= '</div>'; // .etik-event
+
+        return $out;
+    }
 }

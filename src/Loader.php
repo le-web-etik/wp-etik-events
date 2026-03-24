@@ -163,15 +163,26 @@ class Loader {
             return;
         }
 
-        $path = WP_ETIK_PLUGIN_URL . 'assets/js/divi/module.js';
-        $src  = WP_ETIK_PLUGIN_URL . 'assets/js/divi/module.js';
-
-        if ( file_exists($path) ) {
-            wp_register_script('wp_etik_divi_module', $src, [], filemtime($path), true);
+        $js_fs  = WP_ETIK_PLUGIN_DIR . 'assets/js/divi/module.js'; // chemin filesystem
+        $js_url = WP_ETIK_PLUGIN_URL  . 'assets/js/divi/module.js'; // URL navigateur
+ 
+        if ( file_exists( $js_fs ) ) {
+            wp_register_script(
+                'wp_etik_divi_module',
+                $js_url,
+                ['wp-element', 'react', 'react-dom'],
+                filemtime( $js_fs ), // ✅ filemtime sur chemin FS
+                true
+            );
             wp_enqueue_script('wp_etik_divi_module');
-            error_log('ETIK: enqueued divi module.js for Visual Builder');
+ 
+            if ( defined('WP_DEBUG') && WP_DEBUG ) {
+                error_log('ETIK: divi module.js enqueued (v=' . filemtime($js_fs) . ')');
+            }
         } else {
-            error_log('ETIK: divi module.js missing at ' . $path);
+            if ( defined('WP_DEBUG') && WP_DEBUG ) {
+                error_log('ETIK: divi module.js MISSING at ' . $js_fs);
+            }
         }
 
     }
@@ -218,11 +229,12 @@ class Loader {
      */
     function wp_etik_payment_return_shortcode() {
         if ( ! isset( $_GET['status'] ) ) {
-            return '<div class="notice notice-warning"><p>Paramètre manquant. Veuillez contacter le support.</p></div>';
+            return '<div class="notice notice-warning"><p>⚠️ Paramètre manquant. Veuillez contacter le support.</p></div>';
         }
 
         $status = sanitize_key( $_GET['status'] );
-        $msg = isset( $_GET['msg'] ) ? urldecode( $_GET['msg'] ) : '';
+        //$msg = isset( $_GET['msg'] ) ? urldecode( $_GET['msg'] ) : '';
+        $msg = '';
 
         // Définir les messages par défaut selon le statut
         $default_messages = [
@@ -250,7 +262,7 @@ class Loader {
 
         // HTML du message
         $output = '<div class="notice ' . esc_attr( $class ) . ' is-dismissible" style="padding:20px;max-width:600px;margin:20px auto;text-align:center;">';
-        $output .= '<span class="dashicons ' . esc_attr( $icon ) . '" style="font-size:30px;margin-bottom:10px;display:block;"></span>';
+        //$output .= '<span class="dashicons ' . esc_attr( $icon ) . '" style="font-size:30px;margin-bottom:10px;display:block;"></span>';
         $output .= '<p style="font-size:16px;margin:0;">' . esc_html( $message ) . '</p>';
         $output .= '<a href="' . esc_url( home_url() ) . '" class="button button-primary" style="margin-top:20px;">Retour à l\'accueil</a>';
         $output .= '</div>';
