@@ -18,6 +18,16 @@
   padding: 0;
   list-style: none;
 }
+.etik-layout-grid.etik-col-4{
+  grid-template-columns: repeat(4, 1fr);
+}
+.etik-layout-grid.etik-col-5{
+  grid-template-columns: repeat(5, 1fr);
+}
+.etik-layout-grid.etik-col-6{
+  grid-template-columns: repeat(6, 1fr);
+}
+
 
 .etik-layout-list .etik-layout-grid { grid-template-columns: 1fr; gap: 14px; }
 
@@ -232,7 +242,7 @@
 
 /* Toujours visible (gradient bas) même sans hover pour suggérer le clic */
 .etik-event--full .etik-overlay {
-  opacity: 0.35;
+  opacity: 0;
 }
 .etik-event--full:hover .etik-overlay {
   opacity: 1;

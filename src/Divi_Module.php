@@ -8,7 +8,7 @@ if ( ! class_exists('ET_Builder_Module') ) return;
 class Divi_Module extends \ET_Builder_Module {
 
     public $slug       = 'etk_events';
-    public $vb_support = 'on';
+    public $vb_support = 'partial';
 
     public function init() {
         $this->name = esc_html__( 'Etik Events', 'wp-etik-events' );
@@ -17,6 +17,7 @@ class Divi_Module extends \ET_Builder_Module {
             'title',
             'posts_number',
             'layout',
+            'col_number',
             'image_mode',   // ← nouveau : card | full
             'show_image',
             'image_height', // ← nouveau : hauteur en mode card
@@ -37,6 +38,7 @@ class Divi_Module extends \ET_Builder_Module {
             'image_mode'         => ['card'],
             'image_height'       => ['280px'],
             'layout'             => ['grid'],
+            'col_number'         => ['3'],
             'style_title_color'  => ['#000000'],
             'style_title_size'   => ['18px'],
             'style_date_color'   => ['#0c71c3'],
@@ -104,6 +106,12 @@ class Divi_Module extends \ET_Builder_Module {
                     'list' => esc_html__( 'Liste',  'wp-etik-events' ),
                 ],
             ],
+            'col_number' => [
+                'label'            => esc_html__( "Nombre de colone", 'wp-etik-events' ),
+                'type'             => 'text',
+                'option_category'  => 'configuration',
+            ],
+            
 
             // ── Image ─────────────────────────────────────────────────────────
             'show_image' => [
@@ -126,10 +134,10 @@ class Divi_Module extends \ET_Builder_Module {
                 'description'      => esc_html__( 'En mode Full Picture, seule l\'image s\'affiche. Un clic dessus ouvre directement le formulaire d\'inscription.', 'wp-etik-events' ),
             ],
             'image_height' => [
-                'label'            => esc_html__( 'Hauteur image (ex: 280px, 40vh)', 'wp-etik-events' ),
+                'label'            => esc_html__( 'Hauteur image (ex: 320px, 50vh)', 'wp-etik-events' ),
                 'type'             => 'text',
                 'option_category'  => 'configuration',
-                'description'      => esc_html__( 'S\'applique en mode Carte et Full Picture.', 'wp-etik-events' ),
+                'description'      => esc_html__( 'Mode Carte : hauteur fixe de l\'image (défaut : 280px). Mode Full Picture : laisser vide pour un ratio 16/9 automatique, ou saisir une valeur fixe (ex: 400px) pour forcer une hauteur.', 'wp-etik-events' ),
             ],
 
             // ── Style ─────────────────────────────────────────────────────────
@@ -185,10 +193,20 @@ class Divi_Module extends \ET_Builder_Module {
 
         // ── Lecture des props ─────────────────────────────────────────────────
         $posts_number  = max( 1, intval( $this->props['posts_number'] ?? 3 ) );
+
+        
         $layout        = $this->props['layout']      ?? 'grid';
+        $col_number  = max( 1, intval( $this->props['col_number'] ?? 3 ) );
         $show_image    = ( $this->props['show_image'] ?? 'on' ) === 'on';
         $image_mode    = $this->props['image_mode']  ?? 'card'; // 'card' | 'full'
-        $image_height  = esc_attr( $this->props['image_height'] ?? '280px' );
+        // En mode full, la valeur par défaut est vide (l'aspect-ratio CSS prend le relais).
+        // En mode carte, on garde 280px si rien n'est saisi.
+        $raw_height   = trim( $this->props['image_height'] ?? '' );
+        $image_height = esc_attr(
+            $image_mode === 'full'
+                ? ( $raw_height !== '' ? $raw_height : '' )   // full : vide = aspect-ratio CSS
+                : ( $raw_height !== '' ? $raw_height : '280px' ) // carte : 280px par défaut
+        );
         $custom_class  = esc_attr( $this->props['custom_class'] ?? '' );
 
         $style_title_color   = esc_attr( $this->props['style_title_color']   ?? '#000' );
@@ -218,10 +236,18 @@ class Divi_Module extends \ET_Builder_Module {
 
         $unique       = 'etik-' . uniqid();
         $mode_class   = 'etik-mode-' . esc_attr( $image_mode );
+        $col_class    = 'etik-col-' . esc_attr( $col_number );
+        //col_number
 
         // ── CSS scopé à cette instance ────────────────────────────────────────
         $output  = '<style>';
-        $output .= "#{$unique} .etik-thumb img, #{$unique} .etik-thumb-full { height:{$image_height}; }";
+
+        // Mode carte : hauteur fixe sur l'image
+        if ( $image_mode === 'card' && $image_height !== '' ) {
+            $output .= "#{$unique} .etik-thumb img { height:{$image_height}; }";
+        }
+        // Mode full : la hauteur est appliquée en inline style directement sur la balise <img>
+        // via render_full_card() → pas de CSS scopé nécessaire ici.
         $output .= "#{$unique} .etik-title { color:{$style_title_color}; font-size:{$style_title_size}; }";
         $output .= "#{$unique} .etik-date  { color:{$style_date_color};  font-size:{$style_date_size};  }";
         $output .= "#{$unique} .etik-price { color:{$style_price_color}; font-size:{$style_price_size}; }";
@@ -232,7 +258,7 @@ class Divi_Module extends \ET_Builder_Module {
         $output .= "#{$unique} .etik-overlay .etik-price { color:#ffffff; border-color:rgba(255,255,255,0.6); }";
         $output .= '</style>';
 
-        $output .= '<div class="etik-events ' . esc_attr( $custom_class ) . ' etik-layout-' . esc_attr( $layout ) . ' ' . $mode_class . '" id="' . esc_attr( $unique ) . '">';
+        $output .= '<div class="etik-events ' . esc_attr( $custom_class ) . ' etik-layout-' . esc_attr( $layout ) . ' ' . $mode_class . ' ' . $col_class . '" id="' . esc_attr( $unique ) . '">';
 
         if ( ! $query->have_posts() ) {
             $output .= '<p class="etik-no-events">' . esc_html__( 'Aucun événement à venir.', 'wp-etik-events' ) . '</p>';
@@ -258,7 +284,7 @@ class Divi_Module extends \ET_Builder_Module {
 
             // ── MODE FULL PICTURE ─────────────────────────────────────────────
             if ( $image_mode === 'full' ) {
-                $output .= $this->render_full_card( $id, $title, $date_label, $price_label, $data_attrs, $show_image );
+                $output .= $this->render_full_card( $id, $title, $date_label, $price_label, $data_attrs, $show_image, $image_height );
                 continue;
             }
 
@@ -285,8 +311,17 @@ class Divi_Module extends \ET_Builder_Module {
         string $date_label,
         string $price_label,
         string $data_attrs,
-        bool   $show_image
+        bool   $show_image,
+        string $image_height = ''  // ← valeur saisie dans Divi, vide = 100% (aspect-ratio CSS)
     ) : string {
+
+        // ── Inline style sur l'img ────────────────────────────────────────────
+        // On applique height directement sur la balise <img> via wp_get_attachment_image().
+        // Si vide → pas de style inline, le CSS aspect-ratio prend le relais (100% naturel).
+        $img_attrs = [ 'class' => 'etik-thumb-full-img' ];
+        if ( $image_height !== '' ) {
+            $img_attrs['style'] = 'height:' . esc_attr( $image_height ) . ';width:100%;object-fit:cover;';
+        }
 
         $img_html = '';
         if ( $show_image && has_post_thumbnail( $id ) ) {
@@ -294,7 +329,7 @@ class Divi_Module extends \ET_Builder_Module {
                 get_post_thumbnail_id( $id ),
                 'large',
                 false,
-                [ 'class' => 'etik-thumb-full-img' ]
+                $img_attrs
             );
         }
 
