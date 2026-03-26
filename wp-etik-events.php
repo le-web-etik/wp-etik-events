@@ -32,8 +32,8 @@ if ( file_exists( plugin_dir_path(__FILE__) . 'includes/admin/duplicate-event.ph
 use WP_Etik\Loader;
 
 //define("WP_ETIK_HCAPTCHA_SECRET",     "");
-add_option('wp_etik_hcaptcha_secret', '');
-add_option('wp_etik_hcaptcha_sitekey', '');
+//add_option('wp_etik_hcaptcha_secret', '');
+//add_option('wp_etik_hcaptcha_sitekey', '');
 
 add_action('wp_enqueue_scripts', 'wp_etik_force_wp_packages', 5);
 add_action('admin_enqueue_scripts', 'wp_etik_force_wp_packages', 5);
