@@ -129,4 +129,3 @@ function duplicate_wp_post( $post ) {
 
     return $new_post_id;
 }
-

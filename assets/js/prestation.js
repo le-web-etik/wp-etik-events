@@ -5,7 +5,7 @@ jQuery(document).ready(function($) {
 
         var $form = $(this);
         var $m = $form.closest('.etik-modal');
-        clearFeedback($m);
+        EtikUtils.clearFeedback($m);
 
         // Grab values
         var prestation_id = $form.find('input[name="prestation_id"]').val();
@@ -18,7 +18,8 @@ jQuery(document).ready(function($) {
 
         // Client validation
         if (!first_name || !email || !phone || !prestation_id || !slot_id) {
-            showFeedback($m, 'error', 'Veuillez remplir les champs obligatoires.');
+            //showFeedback($m, 'error', 'Veuillez remplir les champs obligatoires.');
+            EtikUtils.showFeedback($m, 'error', 'Veuillez remplir les champs obligatoires.');
             return;
         }
 

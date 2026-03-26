@@ -22,6 +22,7 @@
 
   function $modal() { return $('#etik-global-modal'); }
 
+  /*********
   function showFeedback($m, type, msg) {
     var $fb = $m.find('.etik-feedback');
     if (!$fb.length) {
@@ -34,6 +35,16 @@
     $m.find('.etik-feedback').hide().removeClass('success error').text('');
   }
 
+  function closeModal($m) {
+    try {
+      var widgetId = $m.data(HCAPTCHA_WIDGET_KEY);
+      if (typeof hcaptcha !== 'undefined' && widgetId !== undefined) {
+        try { hcaptcha.reset(widgetId); } catch(e) {}
+      }
+    } catch(e){}
+    $m.attr('aria-hidden', 'true');
+  }
+  ******/
   var HCAPTCHA_WIDGET_KEY = 'etik_hcaptcha_widget';
 
   function initHCaptcha($m) {
@@ -75,15 +86,7 @@
     }, 40);
   }
 
-  function closeModal($m) {
-    try {
-      var widgetId = $m.data(HCAPTCHA_WIDGET_KEY);
-      if (typeof hcaptcha !== 'undefined' && widgetId !== undefined) {
-        try { hcaptcha.reset(widgetId); } catch(e) {}
-      }
-    } catch(e){}
-    $m.attr('aria-hidden', 'true');
-  }
+  
 
   // ── Déclencheurs de la modale ─────────────────────────────────────────────
 

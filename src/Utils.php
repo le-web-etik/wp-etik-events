@@ -9,6 +9,15 @@ defined('ABSPATH') || exit;
 class Utils {
 
     /**
+     * Log conditionnel : n'écrit que si WP_ETIK_DEBUG est true
+     */
+    public static function log( string $message ) : void {
+        if ( defined('WP_ETIK_DEBUG') && WP_ETIK_DEBUG ) {
+            error_log( '[WP_ETIK] ' . $message );
+        }
+    }
+
+    /**
      * Envoie une réponse JSON d'erreur
      *
      * @param string $message

@@ -149,24 +149,42 @@ class Meta_Event {
         return $columns;
     }
 
+    /**
+     * 
+     */
     public function columns_content_etik_event($column_name, $post_ID){
 
-        $start = get_post_meta($post_ID, 'etik_start_date', true);
-        $end = get_post_meta($post_ID, 'etik_end_date', true);
-        $max_place = get_post_meta($post_ID, 'etik_max_place', true);
-
         if ($column_name == 'lwe_date_event_strat') {
+            $start = get_post_meta($post_ID, 'etik_start_date', true);
             echo $start ;
         }
         if ($column_name == 'lwe_date_event_end') {
+            $end = get_post_meta($post_ID, 'etik_end_date', true);
             echo $end;
         }
         if ($column_name == 'nb_resa') {
-            echo 0 . " / " . $max_place;
+            global $wpdb;
+            $table = $wpdb->prefix . 'etik_inscriptions';
+            $max_place = get_post_meta( $post_ID, 'etik_max_place', true );
+
+            // ✅ Compter les inscriptions confirmées depuis la BDD
+            $count = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status = 'confirmed'",
+                $post_ID
+            ));
+
+            $display_max = $max_place ? esc_html( $max_place ) : '∞';
+
+            // ✅ Coloration si complet
+            $style = ( $max_place && $count >= (int)$max_place )
+                ? 'color:#a12d2d;font-weight:bold;'
+                : 'color:#0b7a4b;';
+
+            echo '<span style="' . $style . '">' . $count . ' / ' . $display_max . '</span>';
         }
     }
 
-    	/**
+    /**
 	 * Make the SEO Score column sortable.
 	 *
 	 * @param array $columns Array of column names.

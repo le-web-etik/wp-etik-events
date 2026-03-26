@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! defined( 'WP_ETIK_PLUGIN_DIR' ) ) {
     define( 'WP_ETIK_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'WP_ETIK_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+
+    define( 'WP_ETIK_DEBUG', defined('WP_DEBUG') && WP_DEBUG );
 }
 
 // plugin bootstrap (wp-etik-events.php)
@@ -55,13 +57,11 @@ function wp_etik_enqueue_inscription_assets() {
 }
 
 
-error_log('ETIK VERIF: class ET_Builder_Module exists? ' . (class_exists('ET_Builder_Module') ? 'yes' : 'no'));
 if ( defined('ET_BUILDER_VERSION') ) error_log('ETIK VERIF: ET_BUILDER_VERSION = '. ET_BUILDER_VERSION);
 
 
 $loader = new Loader();
 $loader->run();
-error_log('ETIK BOOT: plugin loaded at ' . date('c'));
 
 add_action('admin_init', function(){
     if (! class_exists('ET_Builder_Module')) {

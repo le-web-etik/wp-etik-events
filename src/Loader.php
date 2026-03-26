@@ -90,12 +90,6 @@ class Loader {
             /*else {
                 error_log('ETIK: Payments_Settings class not found');
             }*/
-
-            /*var_dump( class_exists( __NAMESPACE__ . '\\Admin\\Stripe_Settings' ) );
-            // Initialise la page de réglages Stripe (la classe sera autoloadée)
-            if ( class_exists( __NAMESPACE__ . '\\Admin\\Stripe_Settings' ) ) {
-                \WP_Etik\Admin\Stripe_Settings::init();
-            }*/
             
         }
 
@@ -107,7 +101,7 @@ class Loader {
 
     public function plugins_loaded() {
         // Log rapide
-        error_log('ETIK: plugins_loaded handler entered, ET_Builder_Module exists? ' . (class_exists('ET_Builder_Module') ? 'yes' : 'no'));
+        Utils::log('plugins_loaded handler entered, ET_Builder_Module exists? ' . (class_exists('ET_Builder_Module') ? 'yes' : 'no'));
 
         $file = __DIR__ . '/Divi_Module.php'; // chemin vers src/Divi_Module.php
 
@@ -117,29 +111,29 @@ class Loader {
                 require_once $file;
                 if ( class_exists('WP_Etik\\Divi_Module') ) {
                     new \WP_Etik\Divi_Module();
-                    error_log('ETIK: Divi_Module instantiated immediately');
+                    Utils::log('Divi_Module instantiated immediately');
                 } else {
-                    error_log('ETIK: WP_Etik\\Divi_Module class not found after require');
+                    Utils::log('WP_Etik\\Divi_Module class not found after require');
                 }
             } else {
-                error_log('ETIK: Divi_Module file missing: ' . $file);
+                Utils::log('Divi_Module file missing: ' . $file);
             }
             return;
         }
 
         // Sinon, attendre le hook fourni par Divi (une seule fois)
         add_action('et_builder_ready', function() use ($file){
-            error_log('ETIK: et_builder_ready fired, ET_Builder_Module exists? ' . (class_exists('ET_Builder_Module') ? 'yes' : 'no'));
+            Utils::log('et_builder_ready fired, ET_Builder_Module exists? ' . (class_exists('ET_Builder_Module') ? 'yes' : 'no'));
             if ( file_exists($file) ) {
                 require_once $file;
                 if ( class_exists('WP_Etik\\Divi_Module') && class_exists('ET_Builder_Module') ) {
                     new \WP_Etik\Divi_Module();
-                    error_log('ETIK: Divi_Module instantiated on et_builder_ready');
+                    Utils::log('Divi_Module instantiated on et_builder_ready');
                 } else {
-                    error_log('ETIK: Divi_Module class missing or ET_Builder_Module missing at et_builder_ready');
+                    Utils::log('Divi_Module class missing or ET_Builder_Module missing at et_builder_ready');
                 }
             } else {
-                error_log('ETIK: Divi_Module file missing at et_builder_ready: ' . $file);
+                Utils::log('Divi_Module file missing at et_builder_ready: ' . $file);
             }
         }, 20);
     }
@@ -177,11 +171,11 @@ class Loader {
             wp_enqueue_script('wp_etik_divi_module');
  
             if ( defined('WP_DEBUG') && WP_DEBUG ) {
-                error_log('ETIK: divi module.js enqueued (v=' . filemtime($js_fs) . ')');
+                Utils::log('divi module.js enqueued (v=' . filemtime($js_fs) . ')');
             }
         } else {
             if ( defined('WP_DEBUG') && WP_DEBUG ) {
-                error_log('ETIK: divi module.js MISSING at ' . $js_fs);
+                Utils::log('divi module.js MISSING at ' . $js_fs);
             }
         }
 
@@ -197,15 +191,40 @@ class Loader {
         //wp_enqueue_script('bootstrap-etik-js', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js', ['jquery'], null, true);
 
         // Localize data (ajax url + nonce)
-        $nonce = wp_create_nonce('wp_etik_inscription_nonce');
-        
+        // $nonce = wp_create_nonce('wp_etik_inscription_nonce');
 
+        // Style Front
         wp_enqueue_style('etik-front', $dir_url . 'assets/css/front.css', [], '1.0');
-        wp_enqueue_script('etik-front', $dir_url . 'assets/js/front.js', ['jquery'], '1.0', true);
-
         wp_enqueue_style('wp-etik-modal', $dir_url . 'assets/css/etik-modal.css', [], '1.1');
 
         // script front
+        wp_enqueue_script('etik-front', $dir_url . 'assets/js/front.js', ['jquery'], '1.0', true);
+
+        wp_enqueue_script(
+            'wp-etik-utils',
+            $dir_url . 'assets/js/etik-utils.js',
+            ['jquery'],
+            WP_ETIK_VERSION,
+            true
+        );
+
+        wp_register_script(
+            'wp_etik_inscription_js',
+            $dir_url . 'assets/js/etik-inscription.js',
+            ['jquery', 'wp-etik-utils'], // ✅ dépendance explicite
+            WP_ETIK_VERSION,
+            true
+        );
+
+        wp_register_script(
+            'wp-etik-prestation',
+            $dir_url . 'assets/js/prestation.js',
+            ['jquery', 'wp-etik-utils'], // ✅ dépendance explicite
+            WP_ETIK_VERSION,
+            true
+        );
+        
+
         wp_register_script('wp_etik_inscription_js', $dir_url . 'assets/js/etik-inscription.js', ['jquery'], '1.0', true);
 
         // CSS du modal (léger)

@@ -46,6 +46,9 @@ class Etik_Modal_Manager {
     // Injecter le modal juste avant </body>
     public static function render_footer_modal() {
         if ( ! self::is_needed() ) return;
+
+        // Récupère la clé hcaptcha
+        $hcaptcha_sitekey = esc_attr( get_option('wp_etik_hcaptcha_sitekey', '') );
         ?>
         <div class="etik-modal" id="etik-global-modal" aria-hidden="true">
           <div class="etik-modal-backdrop" data-modal-close></div>
@@ -85,8 +88,9 @@ class Etik_Modal_Manager {
                             </div>
 
                             <!-- hCaptcha placeholder (optionnel) -->
-                            <!--<div class="etik-hcaptcha-placeholder" data-hcaptcha-sitekey=""></div>-->
-                            <div class="etik-hcaptcha-placeholder" data-sitekey="2c78b576-80ee-42b8-8700-c4ac6f1652a2"></div>
+                            <?php if ( ! empty( $hcaptcha_sitekey ) ) : ?>
+                                <div class="etik-hcaptcha-placeholder" data-sitekey="<?php echo $hcaptcha_sitekey; ?>"></div>
+                            <?php endif; ?>
 
                             <div class="etik-form-actions">
                                 <button type="submit" class="etik-btn">S'inscrire</button>
