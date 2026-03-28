@@ -87,9 +87,12 @@ jQuery(document).ready(function($) {
     });
 
     // Gérer la modale
+    /*****
     $('#add-prestation-btn').on('click', function() {
+        console.log('test presta modal');
         $('#etik-prestation-modal').attr('aria-hidden', 'false');
     });
+    *****/
 
     $('.etik-modal-close, .etik-modal-backdrop').on('click', function() {
         $('#etik-prestation-modal').attr('aria-hidden', 'true');

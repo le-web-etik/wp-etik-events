@@ -41,7 +41,6 @@ class Loader {
     public function init_components() {
 
         
-
         $cpt = new CPT_Event();
         $cpt->register();
 

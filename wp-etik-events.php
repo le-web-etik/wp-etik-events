@@ -20,6 +20,8 @@ if ( ! defined( 'WP_ETIK_PLUGIN_DIR' ) ) {
     define( 'WP_ETIK_DEBUG', defined('WP_DEBUG') && WP_DEBUG );
 }
 
+define( 'WP_ETIK_VERSION', '1.04' );
+
 // plugin bootstrap (wp-etik-events.php)
 require_once plugin_dir_path(__FILE__) . 'includes/ajax-handlers.php';
 require_once __DIR__ . '/src/Loader.php';
