@@ -1,0 +1,158 @@
+/* ── Layout éditeur ─────────────────────────────── */
+#etik-form-editor {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    margin-top: 16px;
+}
+.etik-editor-left  { flex: 0 0 320px; }
+.etik-editor-right { flex: 1; min-width: 0; }
+
+/* ── Barre ajout champ ──────────────────────────── */
+.etik-add-field-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+    padding: 10px;
+    background: var(--color-background-secondary);
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border-tertiary);
+}
+.etik-add-field-btn { font-size: 12px !important; }
+
+/* ── Liste des champs ───────────────────────────── */
+.etik-fields-list {
+    min-height: 80px;
+}
+.etik-fields-empty {
+    padding: 24px;
+    text-align: center;
+    color: var(--color-text-secondary);
+    border: 2px dashed var(--color-border-tertiary);
+    border-radius: var(--border-radius-md);
+}
+
+/* ── Ligne de champ ─────────────────────────────── */
+.etik-field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-md);
+    flex-wrap: wrap;
+    transition: border-color .15s;
+}
+.etik-field-row:hover { border-color: var(--color-border-secondary); }
+
+.etik-field-placeholder {
+    height: 48px;
+    background: var(--color-background-info);
+    border: 2px dashed var(--color-border-secondary);
+    border-radius: var(--border-radius-md);
+    margin-bottom: 6px;
+}
+
+/* ── Handle drag ────────────────────────────────── */
+.etik-drag-handle {
+    cursor: grab;
+    color: var(--color-text-tertiary);
+    font-size: 18px;
+    flex: 0 0 auto;
+    user-select: none;
+}
+.etik-drag-handle:active { cursor: grabbing; }
+
+/* ── Résumé + actions ───────────────────────────── */
+.etik-field-summary {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+}
+.etik-field-actions {
+    display: flex;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+.etik-field-toggle,
+.etik-field-delete { padding: 2px 6px !important; font-size: 14px !important; }
+
+/* ── Badge type ─────────────────────────────────── */
+.etik-field-type-badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    background: var(--color-background-secondary);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-tertiary);
+}
+.etik-type-email   { background:#e6f1fb; color:#0c447c; border-color:#b5d4f4; }
+.etik-type-tel     { background:#eaf3de; color:#3b6d11; border-color:#c0dd97; }
+.etik-type-number  { background:#faeeda; color:#854f0b; border-color:#fac775; }
+.etik-type-textarea{ background:#eeedfe; color:#3c3489; border-color:#afa9ec; }
+.etik-type-checkbox{ background:#e1f5ee; color:#0f6e56; border-color:#5dcaa5; }
+.etik-type-select  { background:#fbeaf0; color:#72243e; border-color:#f4c0d1; }
+.etik-type-date    { background:#fcebeb; color:#791f1f; border-color:#f7c1c1; }
+
+/* ── Détails dépliés ────────────────────────────── */
+.etik-field-details {
+    width: 100%;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border-tertiary);
+    margin-top: 8px;
+}
+.etik-field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.etik-field-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+.etik-field-required-wrap {
+    flex-direction: row !important;
+    align-items: center;
+    font-weight: 400 !important;
+}
+.etik-field-options-wrap { margin-top: 12px; }
+.etik-field-options-wrap label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* ── Badge défaut ───────────────────────────────── */
+.etik-badge-default {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    background: #e1f5ee;
+    color: #0f6e56;
+    border: 1px solid #5dcaa5;
+    border-radius: 20px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* ── Responsive ─────────────────────────────────── */
+@media (max-width: 900px) {
+    #etik-form-editor  { flex-direction: column; }
+    .etik-editor-left  { flex: none; width: 100%; }
+    .etik-field-grid   { grid-template-columns: 1fr; }
+}

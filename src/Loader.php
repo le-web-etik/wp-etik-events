@@ -73,6 +73,8 @@ class Loader {
         // enregistrement et paiement
         if ( is_admin() && current_user_can( 'manage_options' ) ) {
 
+            require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Form_Builder_Admin.php';
+            \WP_Etik\Admin\Form_Builder_Admin::init();
 
             require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/admin-registrations.php';
             $registrations = new \WP_Etik\Admin\Registrations_Admin();

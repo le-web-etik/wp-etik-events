@@ -48,6 +48,9 @@ class Activator {
         // Créer les tables pour les prestations
         self::create_prestation_tables();
 
+        //
+        self::create_form_tables();
+
         if ( get_option( 'etik_plugin_activated' ) !== 'yes' ) {
             flush_rewrite_rules();
             update_option( 'etik_plugin_activated', 'yes' );
@@ -131,4 +134,135 @@ class Activator {
         $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}etik_reservations" );
         $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}etik_prestation_closures" );
     }
+
+    private static function create_form_tables() : void {
+        global $wpdb;
+        $charset_collate = $wpdb->get_charset_collate();
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+        // Table etik_forms
+        $table_forms = $wpdb->prefix . 'etik_forms';
+        dbDelta( "CREATE TABLE {$table_forms} (
+            id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            title       VARCHAR(191) NOT NULL,
+            description TEXT NULL,
+            slug        VARCHAR(191) NOT NULL DEFAULT '',
+            attach_type VARCHAR(20)  NOT NULL DEFAULT 'all',
+            is_default  TINYINT(1)   NOT NULL DEFAULT 0,
+            created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY slug (slug)
+        ) {$charset_collate};" );
+
+        // Table etik_form_fields
+        $table_fields = $wpdb->prefix . 'etik_form_fields';
+        dbDelta( "CREATE TABLE {$table_fields} (
+            id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            form_id     BIGINT UNSIGNED NOT NULL,
+            field_key   VARCHAR(100) NOT NULL,
+            label       VARCHAR(191) NOT NULL,
+            type        VARCHAR(30)  NOT NULL DEFAULT 'text',
+            placeholder VARCHAR(191) NULL,
+            required    TINYINT(1)   NOT NULL DEFAULT 0,
+            options     TEXT         NULL,
+            help_text   VARCHAR(255) NULL,
+            sort_order  SMALLINT     NOT NULL DEFAULT 0,
+            PRIMARY KEY (id),
+            KEY form_id (form_id),
+            KEY sort_order (sort_order)
+        ) {$charset_collate};" );
+
+        // Créer le formulaire par défaut si il n'existe pas
+        self::maybe_create_default_form();
+    }
+
+    private static function maybe_create_default_form() : void {
+        global $wpdb;
+        $table_forms  = $wpdb->prefix . 'etik_forms';
+        $table_fields = $wpdb->prefix . 'etik_form_fields';
+
+        // Vérifier si un formulaire par défaut existe déjà
+        $exists = $wpdb->get_var( "SELECT id FROM {$table_forms} WHERE is_default = 1 LIMIT 1" );
+        if ( $exists ) return;
+
+        // Créer le formulaire par défaut
+        $wpdb->insert( $table_forms, [
+            'title'       => 'Formulaire d\'inscription standard',
+            'description' => 'Formulaire généré automatiquement à l\'activation du plugin.',
+            'slug'        => 'inscription-standard',
+            'attach_type' => 'all',
+            'is_default'  => 1,
+        ], [ '%s', '%s', '%s', '%s', '%d' ] );
+
+        $form_id = (int) $wpdb->insert_id;
+        if ( ! $form_id ) return;
+
+        // Champs par défaut inspirés du modal existant
+        $fields = [
+            [
+                'field_key'   => 'first_name',
+                'label'       => 'Prénom',
+                'type'        => 'text',
+                'placeholder' => 'Votre prénom',
+                'required'    => 1,
+                'help_text'   => '',
+                'sort_order'  => 1,
+            ],
+            [
+                'field_key'   => 'last_name',
+                'label'       => 'Nom',
+                'type'        => 'text',
+                'placeholder' => 'Votre nom',
+                'required'    => 0,
+                'help_text'   => '',
+                'sort_order'  => 2,
+            ],
+            [
+                'field_key'   => 'email',
+                'label'       => 'E-mail',
+                'type'        => 'email',
+                'placeholder' => 'votre@email.fr',
+                'required'    => 1,
+                'help_text'   => '',
+                'sort_order'  => 3,
+            ],
+            [
+                'field_key'   => 'phone',
+                'label'       => 'Téléphone',
+                'type'        => 'tel',
+                'placeholder' => '06 00 00 00 00',
+                'required'    => 1,
+                'help_text'   => '',
+                'sort_order'  => 4,
+            ],
+            [
+                'field_key'   => 'desired_domain',
+                'label'       => 'Nom de domaine souhaité',
+                'type'        => 'text',
+                'placeholder' => 'monsite.fr',
+                'required'    => 0,
+                'help_text'   => 'Laissez vide si vous n\'en avez pas encore.',
+                'sort_order'  => 5,
+            ],
+            [
+                'field_key'   => 'has_domain',
+                'label'       => 'J\'ai déjà un nom de domaine',
+                'type'        => 'checkbox',
+                'placeholder' => '',
+                'required'    => 0,
+                'help_text'   => '',
+                'sort_order'  => 6,
+            ],
+        ];
+
+        foreach ( $fields as $field ) {
+            $wpdb->insert( $table_fields, array_merge( $field, [ 'form_id' => $form_id ] ),
+                [ '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d' ]
+            );
+        }
+    }
+
+
 }
