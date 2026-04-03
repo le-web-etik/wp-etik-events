@@ -34,25 +34,43 @@ jQuery(function($){
         var $empty  = $('.etik-fields-empty');
         var $tpl    = $( $('#etik-field-row-tpl').html() );
         var uid     = 'new_' + Date.now();
-
+ 
         $tpl.attr('data-field-id', uid).attr('data-type', type);
         $tpl.find('.etik-field-type-badge')
             .attr('class', 'etik-field-type-badge etik-type-' + type)
             .text( cfg.field_types[type] ? cfg.field_types[type].label : type );
-
-        // Afficher les options select si nécessaire
-        if ( type === 'select' ) {
+ 
+        // ── Affichage conditionnel des zones selon le type ───────────────
+ 
+        // Choix (select / radio / checkbox_group) → textarea une option/ligne
+        if ( ['select', 'radio', 'checkbox_group'].indexOf(type) !== -1 ) {
             $tpl.find('.etik-field-options-wrap').show();
+            // Radio : pré-remplir Oui / Non par défaut
+            if ( type === 'radio' ) {
+                $tpl.find('.etik-f-options').val('Oui\nNon');
+            }
+        } else {
+            $tpl.find('.etik-field-options-wrap').hide();
         }
-
+ 
+        // Contenu HTML (html / consent) → grande textarea riche
+        if ( ['html', 'consent'].indexOf(type) !== -1 ) {
+            $tpl.find('.etik-field-html-wrap').show();
+            // Pas de libellé obligatoire pour html
+            if ( type === 'html' ) {
+                $tpl.find('.etik-required-wrap').hide();
+                $tpl.find('.etik-f-label').attr('placeholder', 'Titre du bloc (optionnel)');
+            }
+        } else {
+            $tpl.find('.etik-field-html-wrap').hide();
+        }
+ 
         // Déplie immédiatement le nouveau champ
         $tpl.find('.etik-field-details').show();
         $tpl.find('.etik-field-toggle').text('▴');
-
+ 
         if ( $empty.length ) $empty.remove();
         $('#etik-fields-list').append($tpl);
-
-        // Focus sur le libellé
         $tpl.find('.etik-f-label').focus();
     });
 
@@ -135,6 +153,7 @@ jQuery(function($){
         var fields = [];
         var valid  = true;
         $('#etik-fields-list .etik-field-row').each(function(){
+
             var $row  = $(this);
             var label = $.trim( $row.find('.etik-f-label').val() );
             if ( ! label ) {
@@ -144,13 +163,25 @@ jQuery(function($){
                 $row.find('.etik-f-label').focus();
                 return false; // break each
             }
+
+            var type = $row.data('type');
+ 
+            // Pour html/consent : le contenu vient de .etik-f-html-content
+            // Pour les autres   : les choix viennent de .etik-f-options
+            var optionsValue;
+            if ( ['html', 'consent'].indexOf(type) !== -1 ) {
+                optionsValue = $row.find('.etik-f-html-content').val();
+            } else {
+                optionsValue = $row.find('.etik-f-options').val();
+            }
+
             fields.push({
                 field_key:   $row.find('.etik-f-key').val(),
                 label:       label,
-                type:        $row.data('type'),
+                type:        type,
                 placeholder: $row.find('.etik-f-placeholder').val(),
                 required:    $row.find('.etik-f-required').is(':checked') ? 1 : 0,
-                options:     $row.find('.etik-f-options').val(),
+                options:     optionsValue,
                 help_text:   $row.find('.etik-f-help').val(),
             });
         });

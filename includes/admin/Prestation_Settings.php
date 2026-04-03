@@ -186,7 +186,10 @@ class Prestation_Settings {
                 }, function (res) {
                     $btn.prop('disabled', false).text('Ajouter ce créneau');
                     if (res.success) {
-                        location.reload();
+                        //location.reload();
+                        var url = new URL(window.location.href);
+                        url.searchParams.set('tab', 'planning');
+                        window.location.href = url.toString();
                     } else {
                         alert(res.data || 'Erreur lors de l\'ajout.');
                     }

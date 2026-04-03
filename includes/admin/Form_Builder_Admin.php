@@ -309,93 +309,152 @@ class Form_Builder_Admin {
      * Affiche une ligne de champ (soit depuis BDD, soit template vide pour JS).
      */
     private function render_field_row( ?array $field, bool $is_template = false ) : void {
-        $id          = $is_template ? '{{id}}' : esc_attr( $field['id'] ?? '' );
-        $field_key   = $is_template ? '' : esc_attr( $field['field_key'] ?? '' );
-        $label       = $is_template ? '' : esc_attr( $field['label'] ?? '' );
-        $type        = $is_template ? 'text' : esc_attr( $field['type'] ?? 'text' );
-        $placeholder = $is_template ? '' : esc_attr( $field['placeholder'] ?? '' );
-        $required    = $is_template ? false : (bool) intval( $field['required'] ?? 0 );
-        $help_text   = $is_template ? '' : esc_attr( $field['help_text'] ?? '' );
-        $options_raw = $is_template ? '' : implode( "\n", $field['options_decoded'] ?? [] );
-        $type_label  = Form_Manager::get_field_types()[$type]['label'] ?? $type;
+        $id          = $is_template ? '{{id}}'         : esc_attr( $field['id'] ?? '' );
+        $field_key   = $is_template ? ''               : esc_attr( $field['field_key'] ?? '' );
+        $label       = $is_template ? ''               : esc_attr( $field['label'] ?? '' );
+        $type        = $is_template ? 'text'           : esc_attr( $field['type'] ?? 'text' );
+        $placeholder = $is_template ? ''               : esc_attr( $field['placeholder'] ?? '' );
+        $required    = $is_template ? false            : (bool) intval( $field['required'] ?? 0 );
+        $help_text   = $is_template ? ''               : esc_attr( $field['help_text'] ?? '' );
+ 
+        // Types avec liste de choix (select / radio / checkbox_group)
+        $choices_types = [ 'select', 'radio', 'checkbox_group' ];
+        // Types avec contenu libre HTML (html / consent)
+        $html_types    = [ 'html', 'consent' ];
+ 
+        // Contenu selon le type
+        $options_raw  = '';  // pour choices_types : options séparées par \n
+        $html_content = '';  // pour html_types    : contenu HTML/texte
+ 
+        if ( ! $is_template ) {
+            $decoded = $field['options_decoded'] ?? [];
+            if ( in_array( $type, $html_types ) ) {
+                // options_decoded[0] = contenu HTML
+                $html_content = $decoded[0] ?? '';
+            } else {
+                // options_decoded = tableau de choix
+                $options_raw = implode( "\n", $decoded );
+            }
+        }
+ 
+        $type_info  = \WP_Etik\Form_Manager::get_field_types();
+        $type_label = $type_info[ $type ]['label'] ?? $type;
+ 
+        $show_choices = ! $is_template && in_array( $type, $choices_types );
+        $show_html    = ! $is_template && in_array( $type, $html_types );
+        $is_html_type = in_array( $type, $html_types );
         ?>
-        <div class="etik-field-row" data-field-id="<?php echo $id; ?>" data-type="<?php echo $type; ?>">
-            <!-- Handle drag & drop -->
-            <span class="etik-drag-handle" title="<?php esc_attr_e('Glisser pour réordonner', 'wp-etik-events'); ?>">
-                ⠿
-            </span>
-
-            <!-- Résumé (toujours visible) -->
+        <div class="etik-field-row"
+             data-field-id="<?php echo $id; ?>"
+             data-type="<?php echo $type; ?>">
+ 
+            <!-- Handle drag -->
+            <span class="etik-drag-handle" title="Glisser pour réordonner">⠿</span>
+ 
+            <!-- Résumé -->
             <div class="etik-field-summary">
-                <span class="etik-field-type-badge etik-type-<?php echo esc_attr($type); ?>">
+                <span class="etik-field-type-badge etik-type-<?php echo esc_attr( $type ); ?>">
                     <?php echo esc_html( $type_label ); ?>
                 </span>
                 <strong class="etik-field-label-preview">
-                    <?php echo $label ?: '<em style="font-weight:400;color:#6b6b6b;">' . esc_html__('(sans libellé)', 'wp-etik-events') . '</em>'; ?>
+                    <?php echo $label
+                        ? esc_html( $label )
+                        : '<em style="font-weight:400;color:#6b6b6b;">(sans libellé)</em>'; ?>
                 </strong>
                 <?php if ( $required ) : ?>
-                    <span style="color:#a12d2d;font-size:11px;">*<?php esc_html_e('requis', 'wp-etik-events'); ?></span>
+                    <span class="etik-required-badge" style="color:#a12d2d;font-size:11px;">*requis</span>
                 <?php endif; ?>
             </div>
-
+ 
             <!-- Actions -->
             <div class="etik-field-actions">
-                <button type="button" class="etik-field-toggle button-link" title="<?php esc_attr_e('Modifier', 'wp-etik-events'); ?>">
-                    ▾
-                </button>
-                <button type="button" class="etik-field-delete button-link button-link-delete" title="<?php esc_attr_e('Supprimer', 'wp-etik-events'); ?>">
-                    ✕
-                </button>
+                <button type="button" class="button button-small etik-field-toggle">▾</button>
+                <button type="button" class="button button-small etik-field-delete"
+                        style="color:#d63638;border-color:#d63638;">✕</button>
             </div>
-
-            <!-- Détails (masqués par défaut, dépliés au clic) -->
+ 
+            <!-- Détails (repliés par défaut) -->
             <div class="etik-field-details" style="display:none;">
                 <div class="etik-field-grid">
+ 
+                    <!-- Libellé -->
                     <label>
-                        <?php esc_html_e('Libellé', 'wp-etik-events'); ?> <span style="color:#a12d2d">*</span>
+                        <?php esc_html_e( 'Libellé', 'wp-etik-events' ); ?>
                         <input type="text" class="etik-f-label regular-text"
-                            value="<?php echo $label; ?>"
-                            placeholder="<?php esc_attr_e('Ex: Prénom', 'wp-etik-events'); ?>">
+                               value="<?php echo $label; ?>"
+                               placeholder="<?php echo $is_html_type
+                                   ? esc_attr__( 'Titre du bloc (optionnel)', 'wp-etik-events' )
+                                   : esc_attr__( 'Ex: Votre nom', 'wp-etik-events' ); ?>">
                     </label>
-
+ 
+                    <!-- Clé interne -->
                     <label>
-                        <?php esc_html_e('Clé interne', 'wp-etik-events'); ?>
+                        <?php esc_html_e( 'Clé interne', 'wp-etik-events' ); ?>
                         <input type="text" class="etik-f-key regular-text"
-                            value="<?php echo $field_key; ?>"
-                            placeholder="<?php esc_attr_e('ex: first_name (auto si vide)', 'wp-etik-events'); ?>">
-                        <span class="description"><?php esc_html_e('Identifiant utilisé dans le code.', 'wp-etik-events'); ?></span>
+                               value="<?php echo $field_key; ?>"
+                               placeholder="ex: last_name">
                     </label>
-
+ 
+                    <?php if ( ! $is_html_type ) : ?>
+                    <!-- Placeholder -->
                     <label>
-                        <?php esc_html_e('Texte fantôme (placeholder)', 'wp-etik-events'); ?>
+                        <?php esc_html_e( 'Texte fantôme (placeholder)', 'wp-etik-events' ); ?>
                         <input type="text" class="etik-f-placeholder regular-text"
-                            value="<?php echo $placeholder; ?>"
-                            placeholder="<?php esc_attr_e('Ex: Votre prénom', 'wp-etik-events'); ?>">
+                               value="<?php echo $placeholder; ?>"
+                               placeholder="<?php esc_attr_e( 'Ex: Votre prénom', 'wp-etik-events' ); ?>">
                     </label>
-
+ 
+                    <!-- Aide -->
                     <label>
-                        <?php esc_html_e('Aide (texte sous le champ)', 'wp-etik-events'); ?>
+                        <?php esc_html_e( 'Aide (texte sous le champ)', 'wp-etik-events' ); ?>
                         <input type="text" class="etik-f-help regular-text"
-                            value="<?php echo $help_text; ?>"
-                            placeholder="<?php esc_attr_e('Ex: Champ facultatif', 'wp-etik-events'); ?>">
+                               value="<?php echo $help_text; ?>"
+                               placeholder="<?php esc_attr_e( 'Ex: Champ facultatif', 'wp-etik-events' ); ?>">
                     </label>
-
-                    <label class="etik-field-required-wrap">
+                    <?php endif; ?>
+ 
+                    <!-- Obligatoire (masqué pour html) -->
+                    <?php if ( $type !== 'html' ) : ?>
+                    <label class="etik-field-required-wrap etik-required-wrap">
                         <input type="checkbox" class="etik-f-required" value="1"
-                            <?php checked( $required ); ?>>
-                        <?php esc_html_e('Champ obligatoire', 'wp-etik-events'); ?>
+                               <?php checked( $required ); ?>>
+                        <?php esc_html_e( 'Champ obligatoire', 'wp-etik-events' ); ?>
                     </label>
+                    <?php endif; ?>
+ 
                 </div>
-
-                <!-- Options select (visible uniquement si type=select) -->
-                <div class="etik-field-options-wrap" style="<?php echo $type === 'select' ? '' : 'display:none;'; ?>">
+ 
+                <!-- ── Zone choix (select / radio / checkbox_group) ─────── -->
+                <div class="etik-field-options-wrap"
+                     style="<?php echo $show_choices ? '' : 'display:none;'; ?>margin-top:12px;">
                     <label>
-                        <?php esc_html_e('Options (une par ligne)', 'wp-etik-events'); ?>
+                        <?php esc_html_e( 'Options (une par ligne)', 'wp-etik-events' ); ?>
                         <textarea class="etik-f-options regular-text" rows="4"
-                            placeholder="<?php esc_attr_e("Option 1\nOption 2\nOption 3", 'wp-etik-events'); ?>"
+                            placeholder="<?php esc_attr_e( "Oui\nNon", 'wp-etik-events' ); ?>"
                         ><?php echo esc_textarea( $options_raw ); ?></textarea>
                     </label>
                 </div>
+ 
+                <!-- ── Zone contenu HTML (html / consent) ──────────────── -->
+                <div class="etik-field-html-wrap"
+                     style="<?php echo $show_html ? '' : 'display:none;'; ?>margin-top:12px;">
+                    <label>
+                        <?php echo $type === 'consent'
+                            ? esc_html__( 'Texte du consentement', 'wp-etik-events' )
+                            : esc_html__( 'Contenu (HTML autorisé)', 'wp-etik-events' ); ?>
+                        <textarea class="etik-f-html-content" rows="<?php echo $type === 'consent' ? 4 : 7; ?>"
+                            placeholder="<?php echo $type === 'consent'
+                                ? esc_attr__( "J'autorise… à utiliser mes données…", 'wp-etik-events' )
+                                : esc_attr__( "<p>Votre texte ici. Balises autorisées : p, strong, em, a, ul, li</p>", 'wp-etik-events' ); ?>"
+                        ><?php echo esc_textarea( $html_content ); ?></textarea>
+                        <span class="etik-html-hint">
+                            <?php echo $type === 'consent'
+                                ? esc_html__( 'Texte affiché à côté de la case à cocher.', 'wp-etik-events' )
+                                : esc_html__( 'Balises autorisées : <p> <strong> <em> <a> <ul> <li> <br>', 'wp-etik-events' ); ?>
+                        </span>
+                    </label>
+                </div>
+ 
             </div>
         </div>
         <?php
@@ -432,14 +491,24 @@ class Form_Builder_Admin {
         $fields = [];
 
         foreach ( $fields_raw as $f ) {
+            $type = sanitize_text_field( wp_unslash( $f['type'] ?? 'text' ) );
+ 
+            // Pour html/consent : conserver les balises HTML (wp_kses_post)
+            // Pour les autres   : textarea sans HTML (sanitize_textarea_field)
+            $html_types   = [ 'html', 'consent' ];
+            $options_raw  = wp_unslash( $f['options'] ?? '' );
+            $options_clean = in_array( $type, $html_types )
+                ? wp_kses_post( $options_raw )
+                : sanitize_textarea_field( $options_raw );
+ 
             $fields[] = [
-                'field_key'   => sanitize_key( wp_unslash( $f['field_key'] ?? '' ) ),
-                'label'       => sanitize_text_field( wp_unslash( $f['label'] ?? '' ) ),
-                'type'        => sanitize_text_field( wp_unslash( $f['type'] ?? 'text' ) ),
+                'field_key'   => sanitize_key( wp_unslash( $f['field_key']   ?? '' ) ),
+                'label'       => sanitize_text_field( wp_unslash( $f['label']       ?? '' ) ),
+                'type'        => $type,
                 'placeholder' => sanitize_text_field( wp_unslash( $f['placeholder'] ?? '' ) ),
                 'required'    => intval( $f['required'] ?? 0 ),
-                'options'     => sanitize_textarea_field( wp_unslash( $f['options'] ?? '' ) ),
-                'help_text'   => sanitize_text_field( wp_unslash( $f['help_text'] ?? '' ) ),
+                'options'     => $options_clean,
+                'help_text'   => sanitize_text_field( wp_unslash( $f['help_text']   ?? '' ) ),
             ];
         }
 

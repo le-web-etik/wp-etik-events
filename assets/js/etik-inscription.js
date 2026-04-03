@@ -85,41 +85,148 @@
 
   // ── Ouverture de la modal ─────────────────────────────────────────────────────
 
+   // ── Cache local des formulaires (évite AJAX répétés) ─────────────────────
+  var formCache = {};
+ 
+  // ── Chargement dynamique du formulaire ────────────────────────────────────
+ 
+  function loadFormFields(eventId, $m, callback) {
+    var cacheKey = 'event_' + eventId;
+ 
+    if (formCache[cacheKey] !== undefined) {
+      callback(formCache[cacheKey]);
+      return;
+    }
+ 
+    var $container = $m.find('#etik-form-fields-container');
+    $container.html(
+      '<div class="etik-form-loading" style="text-align:center;padding:24px;color:#888;">'
+      + (window.WP_ETIK_AJAX && WP_ETIK_AJAX.i18n_loading ? WP_ETIK_AJAX.i18n_loading : 'Chargement…')
+      + '</div>'
+    );
+ 
+    $.post(
+      (window.WP_ETIK_AJAX && WP_ETIK_AJAX.ajax_url) || '/wp-admin/admin-ajax.php',
+      {
+        action:   'etik_get_form_html',
+        nonce:    (window.WP_ETIK_AJAX && WP_ETIK_AJAX.form_nonce) || '',
+        event_id: eventId,
+      },
+      function(res) {
+        if (res && res.success && res.data && res.data.html) {
+          formCache[cacheKey] = res.data.html;
+          callback(res.data.html);
+        } else {
+          var msg = (res && res.data && res.data.message)
+            ? res.data.message
+            : 'Les inscriptions ne sont pas disponibles pour cet événement.';
+          formCache[cacheKey] = null;
+          callback(null, msg);
+        }
+      },
+      'json'
+    ).fail(function() {
+      callback(null, 'Erreur de connexion.');
+    });
+  }
+ 
+  // ── Ouverture de la modal (REMPLACE l'ancienne openModal) ─────────────────
+ 
   function openModal(eventId, title) {
     var $m = $modal();
     if (!$m.length) {
       console.warn('[Etik] Modal #etik-global-modal introuvable.');
       return;
     }
-
-    // Renseigner l'event_id dans le formulaire
+ 
+    // event_id dans le formulaire caché
     $m.find('input[name="event_id"]').val(eventId);
-
-    // Mettre à jour le titre
+ 
+    // Titre
     var $titleEl = $('#etik-modal-title');
     if ($titleEl.length) {
-      $titleEl.text(title ? ('Inscription : ' + title) : 'Inscription à la formation');
+      $titleEl.text(title ? ('Inscription : ' + title) : 'Inscription');
     }
-
-    // Reset formulaire et feedback
-    var $form = $m.find('form.etik-insc-form');
-    if ($form.length) $form[0].reset();
+ 
+    // Reset + feedback
     clearFeedback($m);
-
-    // Remettre event_id après reset (le reset efface les champs hidden)
-    $m.find('input[name="event_id"]').val(eventId);
-
-    // Init hCaptcha
-    if (hcaptchaSiteKey) initHCaptcha($m);
-
-    // Ouvrir
+ 
+    // Ouvrir immédiatement (squelette vide visible pendant le chargement)
     $m.attr('aria-hidden', 'false');
-
-    // Focus premier élément interactif
-    setTimeout(function(){
-      $m.find('input:visible, textarea:visible, button:visible, select:visible').first().focus();
-    }, 40);
+ 
+    // Charger les champs via AJAX
+    loadFormFields(eventId, $m, function(html, errorMsg) {
+      var $container = $m.find('#etik-form-fields-container');
+ 
+      if (html) {
+        $container.html(html);
+ 
+        // Remettre event_id (reset possible après injection)
+        $m.find('input[name="event_id"]').val(eventId);
+ 
+        // Initialiser la logique conditionnelle
+        initConditionalFields($m);
+ 
+        // Focus premier champ
+        setTimeout(function(){
+          $m.find('input:visible:not([type=hidden]), textarea:visible, select:visible').first().focus();
+        }, 60);
+ 
+      } else {
+        // Inscriptions désactivées ou erreur
+        $container.html(
+          '<div class="etik-form-disabled" style="text-align:center;padding:20px;color:#888;">'
+          + '<p>' + (errorMsg || 'Inscriptions non disponibles.') + '</p>'
+          + '</div>'
+        );
+        // Masquer le bouton submit
+        $m.find('.etik-submit-btn').hide();
+        return;
+      }
+ 
+      $m.find('.etik-submit-btn').show();
+    });
+ 
+    // hCaptcha
+    if (hcaptchaSiteKey) initHCaptcha($m);
   }
+ 
+  // ── Logique conditionnelle (radio → show/hide/msg) ────────────────────────
+ 
+  function initConditionalFields($m) {
+    // Écouter les changements sur les champs radio/select qui ont des dépendants
+    $m.find('[data-cond-field]').each(function() {
+      var condField  = $(this).data('cond-field');
+      var condValue  = String( $(this).data('cond-value') );
+      var condAction = $(this).data('cond-action');
+      var condMsg    = $(this).data('cond-msg') || '';
+      var $target    = $(this);
+ 
+      // Écouter le champ source
+      $m.on('change.cond', '[name="' + condField + '"]', function() {
+        var val = String( $(this).val() );
+        var matches = (val === condValue);
+ 
+        if (condAction === 'show_field') {
+          $target.toggle(matches);
+          $target.find('input, select, textarea').prop('disabled', !matches);
+ 
+        } else if (condAction === 'show_msg') {
+          // Le message est rendu dans un div.etik-cond-msg[data-for="field_key"]
+          $m.find('.etik-cond-msg[data-for="' + condField + '"]').toggle(matches);
+        }
+      });
+    });
+  }
+ 
+  // ── Nettoyage des écouteurs conditionnels à la fermeture ─────────────────
+  // (Ajouter ceci dans la fonction closeModal existante ou en écoute)
+  $(document).on('click', '.etik-modal-backdrop, .etik-modal-close, [data-modal-close]', function(){
+    var $m = $(this).closest('.etik-modal');
+    if ($m.length) {
+      $m.off('.cond'); // retirer les écouteurs conditionnels
+    }
+  });
 
   // ── Déclencheurs ──────────────────────────────────────────────────────────────
 

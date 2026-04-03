@@ -53,10 +53,6 @@ function wp_etik_force_wp_packages() {
     }
 }
 
-add_action('wp_enqueue_scripts', 'wp_etik_enqueue_inscription_assets');
-function wp_etik_enqueue_inscription_assets() {
-    
-}
 
 
 if ( defined('ET_BUILDER_VERSION') ) error_log('ETIK VERIF: ET_BUILDER_VERSION = '. ET_BUILDER_VERSION);
@@ -79,6 +75,7 @@ add_action('admin_init', function(){
     }
 });
 
+add_action( 'wp_loaded', [ 'WP_Etik\\Etik_Modal_Manager', 'register_ajax_hooks' ] );
 
 // Activation hook to create role
 register_activation_hook(__FILE__, [ 'WP_Etik\\Activator', 'activate' ]);
@@ -86,3 +83,61 @@ register_activation_hook(__FILE__, [ 'WP_Etik\\Activator', 'activate' ]);
 // Deactivation cleanup (optional)
 register_deactivation_hook(__FILE__, [ 'WP_Etik\\Activator', 'deactivate' ]);
 
+/**
+ * Snippet à ajouter dans wp-etik-events.php
+ * (par exemple juste avant register_activation_hook)
+ *
+ * Déclenchement : visiter /wp-admin/?create_form_constellations=1
+ * Une seule exécution possible (doublon détecté automatiquement).
+ */
+ /*
+add_action( 'init', function () {
+ 
+    // Uniquement en admin, connecté administrateur, avec le paramètre GET
+    if ( ! is_admin() )                                          return;
+    if ( ! current_user_can( 'manage_options' ) )                return;
+    if ( ! isset( $_GET['create_form_constellations'] ) )        return;
+ 
+    require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/create-form-constellations.php';
+ 
+    $result = etik_create_form_constellations();
+ 
+    // Construire l'URL de redirection vers la page Formulaires avec un message
+    $base = admin_url( 'edit.php?post_type=etik_event' );
+    $args = [ 'page' => 'wp-etik-forms', 'etik_msg' => $result['status'] ];
+ 
+    if ( $result['form_id'] > 0 ) {
+        // Ouvrir directement l'éditeur du formulaire créé (ou existant)
+        $args['action']  = 'edit';
+        $args['form_id'] = $result['form_id'];
+    }
+ 
+    wp_safe_redirect( add_query_arg( $args, $base ) );
+    exit;
+ 
+} );
+ */
+/**
+ * Afficher la notice issue de la redirection ci-dessus.
+ * (À ajouter aussi dans wp-etik-events.php, ou dans Form_Builder_Admin::enqueue_assets)
+ */
+/*
+add_action( 'admin_notices', function () {
+ 
+    if ( ! isset( $_GET['etik_msg'] ) ) return;
+ 
+    $notices = [
+        'created' => [ 'success', '✅ Formulaire « Inscription Constellations » créé avec succès.' ],
+        'exists'  => [ 'warning', '⚠️ Le formulaire existe déjà — ouverture de l\'éditeur.' ],
+        'error'   => [ 'error',   '❌ Erreur lors de la création du formulaire. Vérifiez les logs.' ],
+    ];
+ 
+    $key = sanitize_key( $_GET['etik_msg'] );
+    if ( ! isset( $notices[ $key ] ) ) return;
+ 
+    [ $type, $text ] = $notices[ $key ];
+    echo '<div class="notice notice-' . esc_attr( $type ) . ' is-dismissible"><p>'
+       . esc_html( $text ) . '</p></div>';
+ 
+} );
+ */
