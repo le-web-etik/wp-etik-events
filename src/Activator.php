@@ -71,14 +71,14 @@ class Activator {
 
         // Table etik_prestation_slots
         $table_name = $wpdb->prefix . 'etik_prestation_slots';
-        $sql = "CREATE TABLE {$table_name} (
+        $sql1 = "CREATE TABLE {$table_name} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             prestation_id BIGINT UNSIGNED NOT NULL,
             type VARCHAR(20) NOT NULL DEFAULT 'recurrent',
             start_time VARCHAR(5) NOT NULL,
             duration INT NOT NULL DEFAULT 60,
             break_duration INT NOT NULL DEFAULT 15,
-            days VARCHAR(10) NOT NULL DEFAULT '1,2,3,4,5,6,7',
+            days VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5,6,7',
             start_date DATE NULL,
             end_date DATE NULL,
             is_closed TINYINT(1) NOT NULL DEFAULT 0,
@@ -91,11 +91,11 @@ class Activator {
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        dbDelta( $sql );
+        dbDelta( $sql1 );
 
         // Table etik_reservations
         $table_name = $wpdb->prefix . 'etik_reservations';
-        $sql = "CREATE TABLE {$table_name} (
+        $sql2 = "CREATE TABLE {$table_name} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             prestation_id BIGINT UNSIGNED NOT NULL,
             slot_id BIGINT UNSIGNED NOT NULL,
@@ -109,11 +109,11 @@ class Activator {
             KEY created_at (created_at)
         ) {$charset_collate};";
 
-        dbDelta( $sql );
+        dbDelta( $sql2 );
 
         // Table etik_prestation_closures
         $table_name = $wpdb->prefix . 'etik_prestation_closures';
-        $sql = "CREATE TABLE {$table_name} (
+        $sql3 = "CREATE TABLE {$table_name} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             prestation_id BIGINT UNSIGNED NOT NULL,
             global TINYINT(1) NOT NULL DEFAULT 0,
@@ -125,7 +125,7 @@ class Activator {
             KEY closure_date (closure_date)
         ) {$charset_collate};";
 
-        dbDelta( $sql );
+        dbDelta( $sql3 );
     }
 
     private static function drop_prestation_tables() {
