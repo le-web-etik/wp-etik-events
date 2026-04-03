@@ -4,11 +4,13 @@
  *
  * Déclencheurs de la modale :
  *   - .etik-formation-btn        (bouton texte, mode carte)
- *   - .etik-formation-btn-img    (image cliquable, mode full picture) ← nouveau
+ *   - .etik-formation-btn-img    (image cliquable, mode full picture)
  *
  * Les deux portent les attributs :
  *   data-event="<post_id>"
  *   data-title="<titre de l'événement>"
+ *
+ * Dépend de : jquery, wp-etik-utils (EtikUtils)
  */
 
 (function($){
@@ -18,77 +20,108 @@
   var globalNonce     = (window.WP_ETIK_AJAX && WP_ETIK_AJAX.nonce)            ? WP_ETIK_AJAX.nonce            : '';
   var hcaptchaSiteKey = (window.WP_ETIK_AJAX && WP_ETIK_AJAX.hcaptcha_sitekey) ? WP_ETIK_AJAX.hcaptcha_sitekey : '';
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  var HCAPTCHA_WIDGET_KEY = 'etik_hcaptcha_widget';
 
-  function $modal() { return $('#etik-global-modal'); }
+  // ── Helpers locaux (délèguent à EtikUtils si dispo, sinon fallback) ──────────
 
-  /*********
   function showFeedback($m, type, msg) {
-    var $fb = $m.find('.etik-feedback');
-    if (!$fb.length) {
-      $fb = $('<div class="etik-feedback" aria-live="polite"></div>').appendTo($m.find('.etik-modal-content').first());
+    if (window.EtikUtils) {
+      EtikUtils.showFeedback($m, type, msg);
+    } else {
+      var $fb = $m.find('.etik-feedback');
+      if (!$fb.length) {
+        $fb = $('<div class="etik-feedback" aria-live="polite"></div>').appendTo($m.find('.etik-modal-content').first());
+      }
+      $fb.removeClass('success error').addClass(type || '').html(msg || '').show();
     }
-    $fb.removeClass('success error').addClass(type || '').text(msg || '').show();
   }
 
   function clearFeedback($m) {
-    $m.find('.etik-feedback').hide().removeClass('success error').text('');
+    if (window.EtikUtils) {
+      EtikUtils.clearFeedback($m);
+    } else {
+      $m.find('.etik-feedback').hide().removeClass('success error').text('');
+    }
   }
 
   function closeModal($m) {
+    // Réinitialiser hCaptcha si présent
     try {
       var widgetId = $m.data(HCAPTCHA_WIDGET_KEY);
       if (typeof hcaptcha !== 'undefined' && widgetId !== undefined) {
-        try { hcaptcha.reset(widgetId); } catch(e) {}
+        hcaptcha.reset(widgetId);
       }
-    } catch(e){}
-    $m.attr('aria-hidden', 'true');
+    } catch(e) {}
+
+    if (window.EtikUtils) {
+      EtikUtils.closeModal($m);
+    } else {
+      $m.attr('aria-hidden', 'true');
+    }
   }
-  ******/
-  var HCAPTCHA_WIDGET_KEY = 'etik_hcaptcha_widget';
+
+  // ── Sélecteur modal global ────────────────────────────────────────────────────
+
+  function $modal() { return $('#etik-global-modal'); }
+
+  // ── hCaptcha ──────────────────────────────────────────────────────────────────
 
   function initHCaptcha($m) {
     if (!hcaptchaSiteKey || typeof hcaptcha === 'undefined') return;
     var placeholder = $m.find('.etik-hcaptcha-placeholder')[0];
     if (!placeholder) return;
     var existing = $m.data(HCAPTCHA_WIDGET_KEY);
-    if (!existing && existing !== 0) {
+    if (existing === undefined || existing === null) {
       try {
         var widgetId = hcaptcha.render(placeholder, { sitekey: hcaptchaSiteKey });
         $m.data(HCAPTCHA_WIDGET_KEY, widgetId);
-      } catch(e) {}
+      } catch(e) {
+        console.warn('[Etik] hCaptcha render error:', e);
+      }
     } else {
       try { hcaptcha.reset(existing); } catch(e) {}
     }
   }
 
+  // ── Ouverture de la modal ─────────────────────────────────────────────────────
+
   function openModal(eventId, title) {
     var $m = $modal();
-    if (!$m.length) return;
-
-    $m.find('input[name="event_id"]').val(eventId);
-
-    var $titleEl = $('#etik-modal-title');
-    if ($titleEl.length) {
-      $titleEl.text(title ? ('Inscription : ' + title) : "Inscription à la formation");
+    if (!$m.length) {
+      console.warn('[Etik] Modal #etik-global-modal introuvable.');
+      return;
     }
 
+    // Renseigner l'event_id dans le formulaire
+    $m.find('input[name="event_id"]').val(eventId);
+
+    // Mettre à jour le titre
+    var $titleEl = $('#etik-modal-title');
+    if ($titleEl.length) {
+      $titleEl.text(title ? ('Inscription : ' + title) : 'Inscription à la formation');
+    }
+
+    // Reset formulaire et feedback
     var $form = $m.find('form.etik-insc-form');
     if ($form.length) $form[0].reset();
     clearFeedback($m);
 
+    // Remettre event_id après reset (le reset efface les champs hidden)
+    $m.find('input[name="event_id"]').val(eventId);
+
+    // Init hCaptcha
     if (hcaptchaSiteKey) initHCaptcha($m);
 
+    // Ouvrir
     $m.attr('aria-hidden', 'false');
 
+    // Focus premier élément interactif
     setTimeout(function(){
-      $m.find('input, textarea, button, select').filter(':visible').first().focus();
+      $m.find('input:visible, textarea:visible, button:visible, select:visible').first().focus();
     }, 40);
   }
 
-  
-
-  // ── Déclencheurs de la modale ─────────────────────────────────────────────
+  // ── Déclencheurs ──────────────────────────────────────────────────────────────
 
   // Mode carte : bouton texte "S'inscrire"
   $(document).on('click', '.etik-formation-btn', function(e){
@@ -110,7 +143,7 @@
     );
   });
 
-  // ── Fermeture ─────────────────────────────────────────────────────────────
+  // ── Fermeture ─────────────────────────────────────────────────────────────────
 
   $(document).on('click', '.etik-modal-backdrop, .etik-modal-close, [data-modal-close]', function(e){
     e.preventDefault();
@@ -125,7 +158,7 @@
     }
   });
 
-  // ── Focus trap ────────────────────────────────────────────────────────────
+  // ── Focus trap (accessibilité) ────────────────────────────────────────────────
 
   $(document).on('keydown', '.etik-modal[aria-hidden="false"]', function(e){
     if (e.key !== 'Tab' && e.keyCode !== 9) return;
@@ -141,7 +174,7 @@
     }
   });
 
-  // ── Soumission formulaire inscription ────────────────────────────────────
+  // ── Soumission formulaire inscription ─────────────────────────────────────────
 
   $(document).on('submit', '.etik-insc-form', function(e){
     e.preventDefault();
@@ -157,7 +190,7 @@
     var has_domain     = $form.find('input[name="has_domain"]').is(':checked') ? 1 : 0;
     var event_id       = $.trim($form.find('input[name="event_id"]').val()       || '');
 
-    // Validation client
+    // Validation côté client
     if (!first_name || !email || !phone || !event_id) {
       showFeedback($m, 'error', 'Veuillez remplir les champs obligatoires : Prénom, E-mail et Téléphone.');
       return;
@@ -167,8 +200,10 @@
       return;
     }
 
+    var action = $form.find('input[name="action"]').val() || 'lwe_create_checkout';
+
     var postData = {
-      action:         $form.find('input[name="action"]').val() || 'wp_etik_handle_inscription',
+      action:         action,
       first_name:     first_name,
       last_name:      last_name,
       email:          email,
@@ -197,30 +232,40 @@
 
     $.post(ajaxUrl, postData, function(resp){
       $submit.prop('disabled', false);
+
       if (resp && resp.success) {
-        showFeedback($m, 'success', resp.data && resp.data.message
-          ? resp.data.message
-          : 'Inscription enregistrée. Vérifiez votre e-mail pour confirmer.');
+        var data = resp.data || {};
+
+        // Redirection Stripe Checkout si URL fournie
+        if (data.checkout_url) {
+          showFeedback($m, 'success', 'Redirection vers le paiement…');
+          setTimeout(function(){ window.location.href = data.checkout_url; }, 800);
+          return;
+        }
+
+        showFeedback($m, 'success', data.message || 'Inscription enregistrée. Vérifiez votre e-mail pour confirmer.');
         setTimeout(function(){ closeModal($m); }, 2200);
+
       } else {
-        var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Erreur';
+        var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Une erreur est survenue.';
         showFeedback($m, 'error', msg);
+        // Reset hCaptcha
         try {
           var w = $m.data(HCAPTCHA_WIDGET_KEY);
           if (typeof hcaptcha !== 'undefined' && w !== undefined) { hcaptcha.reset(w); }
-        } catch(e){}
+        } catch(err) {}
       }
     }, 'json').fail(function(){
       $submit.prop('disabled', false);
-      showFeedback($m, 'error', 'Erreur réseau. Réessayez.');
+      showFeedback($m, 'error', 'Erreur réseau. Veuillez réessayer.');
       try {
         var w2 = $m.data(HCAPTCHA_WIDGET_KEY);
         if (typeof hcaptcha !== 'undefined' && w2 !== undefined) { hcaptcha.reset(w2); }
-      } catch(e){}
+      } catch(err) {}
     });
   });
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────────────────────────────────────
 
   $(function(){
     var $m = $modal();

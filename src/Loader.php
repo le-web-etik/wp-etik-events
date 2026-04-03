@@ -183,24 +183,78 @@ class Loader {
     }
     
 
+    /*
+        public function public_assets() {
 
+            $dir_url = WP_ETIK_PLUGIN_URL;
+            // Bootstrap CSS/JS (ou charger votre propre version)
+            //wp_enqueue_style('bootstrap-etik-css', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css', [], null);
+            //wp_enqueue_script('bootstrap-etik-js', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js', ['jquery'], null, true);
+
+            // Localize data (ajax url + nonce)
+            // $nonce = wp_create_nonce('wp_etik_inscription_nonce');
+
+            // Style Front
+            wp_enqueue_style('etik-front', $dir_url . 'assets/css/front.css', [], '1.0');
+            wp_enqueue_style('wp-etik-modal', $dir_url . 'assets/css/etik-modal.css', [], '1.1');
+
+            // script front
+            wp_enqueue_script('etik-front', $dir_url . 'assets/js/front.js', ['jquery'], '1.0', true);
+
+            wp_enqueue_script(
+                'wp-etik-utils',
+                $dir_url . 'assets/js/etik-utils.js',
+                ['jquery'],
+                WP_ETIK_VERSION,
+                true
+            );
+
+            wp_register_script(
+                'wp_etik_inscription_js',
+                $dir_url . 'assets/js/etik-inscription.js',
+                ['jquery', 'wp-etik-utils'], // ✅ dépendance explicite
+                WP_ETIK_VERSION,
+                true
+            );
+
+            wp_register_script(
+                'wp-etik-prestation',
+                $dir_url . 'assets/js/prestation.js',
+                ['jquery', 'wp-etik-utils'], // ✅ dépendance explicite
+                WP_ETIK_VERSION,
+                true
+            );
+            
+
+            wp_register_script('wp_etik_inscription_js', $dir_url . 'assets/js/etik-inscription.js', ['jquery'], '1.0', true);
+
+            // CSS du modal (léger)
+            wp_enqueue_style( 'wp-etik-modal' );
+
+            // Script jQuery (votre fichier)
+            wp_localize_script('wp_etik_inscription_js', 'WP_ETIK_AJAX', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce'    => wp_create_nonce('wp_etik_inscription_nonce'),
+                'hcaptcha_sitekey' => get_option('wp_etik_hcaptcha_sitekey', '') // ou constante
+            ]);
+            wp_enqueue_script('wp_etik_inscription_js');
+
+            if ( get_option('wp_etik_hcaptcha_sitekey') ) {
+                wp_enqueue_script('hcaptcha', 'https://hcaptcha.com/1/api.js', [], null, true);
+            }
+        }
+    */
+        
     public function public_assets() {
 
-        $dir_url = WP_ETIK_PLUGIN_URL;
-        // Bootstrap CSS/JS (ou charger votre propre version)
-        //wp_enqueue_style('bootstrap-etik-css', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css', [], null);
-        //wp_enqueue_script('bootstrap-etik-js', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js', ['jquery'], null, true);
+        $dir_url  = WP_ETIK_PLUGIN_URL;
+        $dir_path = WP_ETIK_PLUGIN_DIR;
 
-        // Localize data (ajax url + nonce)
-        // $nonce = wp_create_nonce('wp_etik_inscription_nonce');
+        // ── Styles front ───────────────────────────────────────────────────────
+        wp_enqueue_style('etik-front',    $dir_url . 'assets/css/front.css',       [], WP_ETIK_VERSION);
+        wp_enqueue_style('wp-etik-modal', $dir_url . 'assets/css/etik-modal.css',  [], WP_ETIK_VERSION);
 
-        // Style Front
-        wp_enqueue_style('etik-front', $dir_url . 'assets/css/front.css', [], '1.0');
-        wp_enqueue_style('wp-etik-modal', $dir_url . 'assets/css/etik-modal.css', [], '1.1');
-
-        // script front
-        wp_enqueue_script('etik-front', $dir_url . 'assets/js/front.js', ['jquery'], '1.0', true);
-
+        // ── Script utilitaire (doit être chargé avant les scripts qui en dépendent) ──
         wp_enqueue_script(
             'wp-etik-utils',
             $dir_url . 'assets/js/etik-utils.js',
@@ -209,36 +263,43 @@ class Loader {
             true
         );
 
+        // ── Script front (voir plus / voir moins) ──────────────────────────────
+        wp_enqueue_script(
+            'etik-front',
+            $dir_url . 'assets/js/front.js',
+            ['jquery'],
+            WP_ETIK_VERSION,
+            true
+        );
+
+        // ── Script inscription (modal) ─────────────────────────────────────────
+        // Une seule registration avec la bonne dépendance wp-etik-utils
         wp_register_script(
             'wp_etik_inscription_js',
             $dir_url . 'assets/js/etik-inscription.js',
-            ['jquery', 'wp-etik-utils'], // ✅ dépendance explicite
+            ['jquery', 'wp-etik-utils'],
             WP_ETIK_VERSION,
             true
         );
 
+        // ── Script prestation ──────────────────────────────────────────────────
         wp_register_script(
             'wp-etik-prestation',
             $dir_url . 'assets/js/prestation.js',
-            ['jquery', 'wp-etik-utils'], // ✅ dépendance explicite
+            ['jquery', 'wp-etik-utils'],
             WP_ETIK_VERSION,
             true
         );
-        
 
-        wp_register_script('wp_etik_inscription_js', $dir_url . 'assets/js/etik-inscription.js', ['jquery'], '1.0', true);
-
-        // CSS du modal (léger)
-        wp_enqueue_style( 'wp-etik-modal' );
-
-        // Script jQuery (votre fichier)
+        // ── Localisation + enqueue inscription ────────────────────────────────
         wp_localize_script('wp_etik_inscription_js', 'WP_ETIK_AJAX', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce'    => wp_create_nonce('wp_etik_inscription_nonce'),
-            'hcaptcha_sitekey' => get_option('wp_etik_hcaptcha_sitekey', '') // ou constante
+            'ajax_url'         => admin_url('admin-ajax.php'),
+            'nonce'            => wp_create_nonce('wp_etik_inscription_nonce'),
+            'hcaptcha_sitekey' => get_option('wp_etik_hcaptcha_sitekey', ''),
         ]);
         wp_enqueue_script('wp_etik_inscription_js');
 
+        // ── hCaptcha (chargé uniquement si sitekey configurée) ─────────────────
         if ( get_option('wp_etik_hcaptcha_sitekey') ) {
             wp_enqueue_script('hcaptcha', 'https://hcaptcha.com/1/api.js', [], null, true);
         }
