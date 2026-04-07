@@ -313,6 +313,8 @@
 
   // ── Soumission formulaire inscription ────────────────────────────────────────
 
+// ── Soumission formulaire inscription ────────────────────────────────────────
+
   $(document).on('submit', '.etik-insc-form', function(e){
     e.preventDefault();
     var $form = $(this);
@@ -447,47 +449,59 @@
     var $btn = $form.find('.etik-submit-btn');
     $btn.prop('disabled', true).addClass('etik-loading');
 
-    $.post(ajaxUrl, postData, function(resp){
-      $btn.prop('disabled', false).removeClass('etik-loading');
+    // $.ajax() au lieu de $.post() pour récupérer le vrai message JSON
+    // même sur les réponses HTTP 4xx (que $.post() traite comme erreurs réseau).
+    $.ajax({
+      url:      ajaxUrl,
+      method:   'POST',
+      data:     postData,
+      dataType: 'json',
 
-      if (resp.success) {
-        var d = resp.data || {};
+      // Appelé sur 2xx ET sur 4xx/5xx (grâce à statusCode + complete)
+      complete: function(xhr) {
+        $btn.prop('disabled', false).removeClass('etik-loading');
 
-        if (d.checkout_url) {
-          window.location.href = d.checkout_url;
+        var resp = null;
+        try { resp = JSON.parse(xhr.responseText); } catch(e) {}
+
+        if (!resp) {
+          showFeedback($m, 'error', 'Erreur réseau. Veuillez réessayer.');
           return;
         }
 
-        if (d.status === 'waitlist') {
-          showFeedback($m, 'info', d.message || "Vous avez été ajouté(e) à la liste d'attente.");
-          return;
-        }
+        if (resp.success) {
+          var d = resp.data || {};
 
-        if (d.status === 'confirmed') {
-          showFeedback($m, 'success', d.message || 'Inscription confirmée !');
-          return;
-        }
-
-        showFeedback($m, 'success', d.message || 'Inscription enregistrée.');
-
-      } else {
-        var errMsg = (resp.data && resp.data.message)
-          ? resp.data.message
-          : 'Une erreur est survenue. Veuillez réessayer.';
-
-        // Réinitialiser hCaptcha si le token était invalide
-        if (resp.data && resp.data.code === 'captcha_failed') {
-          if (typeof hcaptcha !== 'undefined') {
-            var wId = $m.data(HCAPTCHA_WIDGET_KEY);
-            if (wId !== undefined) hcaptcha.reset(wId);
+          if (d.checkout_url) {
+            window.location.href = d.checkout_url;
+            return;
           }
-        }
+          if (d.status === 'waitlist') {
+            showFeedback($m, 'info', d.message || "Vous avez été ajouté(e) à la liste d'attente.");
+            return;
+          }
+          if (d.status === 'confirmed') {
+            showFeedback($m, 'success', d.message || 'Inscription confirmée !');
+            return;
+          }
+          showFeedback($m, 'success', d.message || 'Inscription enregistrée.');
 
-        showFeedback($m, 'error', errMsg);
+        } else {
+          var errMsg = (resp.data && resp.data.message)
+            ? resp.data.message
+            : 'Une erreur est survenue. Veuillez réessayer.';
+
+          // Reset hCaptcha si le token était rejeté
+          if (resp.data && resp.data.code === 'captcha_failed') {
+            if (typeof hcaptcha !== 'undefined') {
+              var wId = $m.data(HCAPTCHA_WIDGET_KEY);
+              if (wId !== undefined) hcaptcha.reset(wId);
+            }
+          }
+
+          showFeedback($m, 'error', errMsg);
+        }
       }
-    }).fail(function(){
-      $btn.prop('disabled', false).removeClass('etik-loading');
-      showFeedback($m, 'error', 'Erreur réseau. Veuillez réessayer.');
     });
 
   });

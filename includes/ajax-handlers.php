@@ -328,10 +328,10 @@ function maybe_process_confirmation() {
  *   success: false → { code, message }
  */
 function lwe_create_checkout() {
-
+ 
     global $wpdb;
     $table = $wpdb->prefix . 'etik_inscriptions';
-
+ 
     // ── 1. Nonce ────────────────────────────────────────────────────────────
     $nonce = isset( $_REQUEST['nonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['nonce'] ) ) : '';
     if ( ! wp_verify_nonce( $nonce, 'wp_etik_inscription_nonce' ) ) {
@@ -340,20 +340,23 @@ function lwe_create_checkout() {
             'message' => 'Requête invalide (nonce).',
         ], 400 );
     }
-
+ 
     // ── 2. Vérification hCaptcha ────────────────────────────────────────────
     $captcha_token = isset( $_POST['h-captcha-response'] )
         ? sanitize_text_field( wp_unslash( $_POST['h-captcha-response'] ) )
         : '';
-
-    if ( ! lwe_verify_hcaptcha( $captcha_token ) ) {
+ 
+    if ( ! \WP_Etik\verify_hcaptcha( $captcha_token, $hc_error ) ) {
         wp_send_json_error( [
             'code'    => 'captcha_failed',
-            'message' => 'Vérification anti-robot échouée. Veuillez réessayer.',
+            'message' => $hc_error ?: 'Vérification anti-robot échouée. Veuillez réessayer.',
         ], 400 );
     }
-
-    // ── 3. Validation des champs obligatoires ────────────────────────────────
+ 
+    // ── 3. Résolution dynamique des champs via Form_Manager ──────────────────
+    // Le JS envoie form_id (ajouté comme hidden input au chargement du formulaire).
+    // On utilise Form_Manager pour trouver les vraies clés par type,
+    // quelle que soit la field_key définie dans le Form Builder.
     $event_id = isset( $_POST['event_id'] ) ? intval( $_POST['event_id'] ) : 0;
     if ( $event_id <= 0 ) {
         wp_send_json_error( [
@@ -361,30 +364,33 @@ function lwe_create_checkout() {
             'message' => "ID de l'événement manquant ou invalide.",
         ], 400 );
     }
-
-    $email      = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
-    $first_name = isset( $_POST['first_name'] ) ? sanitize_text_field( wp_unslash( $_POST['first_name'] ) ) : '';
-    $last_name  = isset( $_POST['last_name'] ) ? sanitize_text_field( wp_unslash( $_POST['last_name'] ) ) : '';
-    $phone      = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
-
+ 
+    $form_id   = isset( $_POST['form_id'] ) ? intval( $_POST['form_id'] ) : 0;
+    $field_map = \WP_Etik\lwe_resolve_field_map( $form_id );
+ 
+    $email      = \WP_Etik\lwe_get_post_field( $field_map['email'],      'email' );
+    $first_name = \WP_Etik\lwe_get_post_field( $field_map['first_name'], 'text'  );
+    $last_name  = \WP_Etik\lwe_get_post_field( $field_map['last_name'],  'text'  );
+    $phone      = \WP_Etik\lwe_get_post_field( $field_map['phone'],      'tel'   );
+ 
     // Champs spécifiques à l'événement
     $desired_domain = isset( $_POST['desired_domain'] ) ? sanitize_text_field( wp_unslash( $_POST['desired_domain'] ) ) : '';
     $has_domain     = isset( $_POST['has_domain'] ) ? ( intval( $_POST['has_domain'] ) ? 1 : 0 ) : 0;
-
+ 
     if ( ! is_email( $email ) ) {
         wp_send_json_error( [
             'code'    => 'invalid_email',
             'message' => 'Adresse e-mail invalide.',
         ], 400 );
     }
-
+ 
     if ( empty( $first_name ) || empty( $last_name ) ) {
         wp_send_json_error( [
             'code'    => 'missing_name',
             'message' => 'Prénom et nom sont obligatoires.',
         ], 400 );
     }
-
+ 
     // ── 4. Récupération de l'événement ───────────────────────────────────────
     $event = get_post( $event_id );
     if ( ! $event || $event->post_status !== 'publish' ) {
@@ -393,36 +399,36 @@ function lwe_create_checkout() {
             'message' => 'Événement introuvable.',
         ], 404 );
     }
-
+ 
     $event_title = get_the_title( $event_id );
     $price_cents = intval( get_post_meta( $event_id, 'etik_event_price', true ) ) * 100;
     $max_places  = intval( get_post_meta( $event_id, 'etik_event_max_places', true ) );
-
+ 
     // ── 5. Vérification des places disponibles ───────────────────────────────
     $confirmed_count = (int) $wpdb->get_var( $wpdb->prepare(
         "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status IN ('confirmed', 'pending')",
         $event_id
     ) );
-
+ 
     $status = 'pending';
     if ( $max_places > 0 && $confirmed_count >= $max_places ) {
         $status = 'waitlist';
     }
-
+ 
     // ── 6. Vérification doublon (même email + même événement non annulé) ─────
     $existing = $wpdb->get_var( $wpdb->prepare(
         "SELECT id FROM {$table} WHERE event_id = %d AND email = %s AND status NOT IN ('cancelled') LIMIT 1",
         $event_id,
         $email
     ) );
-
+ 
     if ( $existing ) {
         wp_send_json_error( [
             'code'    => 'already_registered',
             'message' => 'Cette adresse e-mail est déjà inscrite pour cet événement.',
         ], 409 );
     }
-
+ 
     // ── 7. Insertion de l'inscription ────────────────────────────────────────
     $inserted = $wpdb->insert(
         $table,
@@ -437,7 +443,7 @@ function lwe_create_checkout() {
         ],
         [ '%d', '%s', '%s', '%s', '%s', '%s', '%s' ]
     );
-
+ 
     if ( ! $inserted ) {
         error_log( '[WP-Etik] DB insert error: ' . $wpdb->last_error );
         wp_send_json_error( [
@@ -445,9 +451,9 @@ function lwe_create_checkout() {
             'message' => "Erreur lors de l'enregistrement. Veuillez réessayer.",
         ], 500 );
     }
-
+ 
     $ins_id = $wpdb->insert_id;
-
+ 
     // ── 8. Sauvegarde des champs spécifiques en meta ─────────────────────────
     // Ces données sont stockées en post_meta de l'inscription pour ne pas
     // alourdir la table principale et rester extensibles.
@@ -457,7 +463,7 @@ function lwe_create_checkout() {
         // remplacer par un wpdb->update() sur ces colonnes.
     }
     update_post_meta( $ins_id, 'lwe_has_domain', $has_domain );
-
+ 
     // ── 9. Liste d'attente : pas de paiement, juste confirmation d'attente ───
     if ( $status === 'waitlist' ) {
         wp_send_json_success( [
@@ -466,7 +472,7 @@ function lwe_create_checkout() {
             'message'        => "L'événement est complet. Vous avez été ajouté(e) à la liste d'attente.",
         ] );
     }
-
+ 
     // ── 10. Création de la session Stripe si paiement requis ─────────────────
     if ( $price_cents <= 0 ) {
         // Pas de paiement requis → inscription confirmée directement
@@ -483,7 +489,7 @@ function lwe_create_checkout() {
             'message'        => 'Inscription confirmée.',
         ] );
     }
-
+ 
     // Appel Stripe via la façade centralisée
     if ( ! class_exists( '\\WP_Etik\\Stripe\\Service' ) ) {
         wp_send_json_error( [
@@ -491,7 +497,7 @@ function lwe_create_checkout() {
             'message' => 'Service de paiement non disponible.',
         ], 500 );
     }
-
+ 
     $checkout = \WP_Etik\Stripe\Service::create_checkout_session( [
         'amount'         => $price_cents,
         'currency'       => 'eur',
@@ -504,7 +510,7 @@ function lwe_create_checkout() {
         'success_url'    => home_url( '?status=success' ),
         'cancel_url'     => home_url( '?status=cancel' ),
     ] );
-
+ 
     if ( is_wp_error( $checkout ) ) {
         error_log( '[WP-Etik] Stripe session error: ' . $checkout->get_error_message() );
         wp_send_json_error( [
@@ -512,10 +518,10 @@ function lwe_create_checkout() {
             'message' => 'Erreur lors de la création du paiement : ' . $checkout->get_error_message(),
         ], 502 );
     }
-
+ 
     $session_id   = $checkout['id'] ?? '';
     $checkout_url = $checkout['url'] ?? '';
-
+ 
     if ( $session_id ) {
         $wpdb->update(
             $table,
@@ -525,14 +531,14 @@ function lwe_create_checkout() {
             [ '%d' ]
         );
     }
-
+ 
     if ( empty( $checkout_url ) ) {
         wp_send_json_error( [
             'code'    => 'stripe_no_url',
             'message' => 'Aucune URL de paiement retournée par Stripe.',
         ], 500 );
     }
-
+ 
     wp_send_json_success( [
         'status'         => 'pending',
         'inscription_id' => $ins_id,
@@ -540,65 +546,8 @@ function lwe_create_checkout() {
     ] );
 }
 
-// ── Enregistrement des hooks AJAX ────────────────────────────────────────────
-add_action( 'wp_ajax_lwe_create_checkout',        'lwe_create_checkout' );
-add_action( 'wp_ajax_nopriv_lwe_create_checkout', 'lwe_create_checkout' );
 
 
-/**
- * Vérifie le token hCaptcha côté serveur.
- *
- * La clé secrète hCaptcha doit être enregistrée dans :
- *   Réglages → WP-Etik → Sécurité → hCaptcha Secret Key
- * (option WordPress : 'lwe_hcaptcha_secret')
- *
- * @param  string $token  Le token envoyé par le widget (h-captcha-response).
- * @return bool           true si valide, false sinon.
- */
-function lwe_verify_hcaptcha( string $token ) : bool {
-
-    // Si pas de token, échec immédiat.
-    if ( empty( $token ) ) {
-        return false;
-    }
-
-    $secret = get_option( 'lwe_hcaptcha_secret', '' );
-
-    // En dev/staging, si aucun secret configuré → on laisse passer
-    // (pratique pour les tests locaux, à désactiver en prod).
-    if ( empty( $secret ) ) {
-        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( '[WP-Etik] hCaptcha: secret non configuré — vérification ignorée (WP_DEBUG actif).' );
-            return true;
-        }
-        // En production sans secret → refus par sécurité.
-        error_log( '[WP-Etik] hCaptcha: secret non configuré en production.' );
-        return false;
-    }
-
-    $response = wp_remote_post( 'https://hcaptcha.com/siteverify', [
-        'timeout' => 10,
-        'body'    => [
-            'secret'   => $secret,
-            'response' => $token,
-        ],
-    ] );
-
-    if ( is_wp_error( $response ) ) {
-        error_log( '[WP-Etik] hCaptcha: erreur réseau — ' . $response->get_error_message() );
-        // En cas de timeout réseau on laisse passer pour ne pas bloquer les vrais utilisateurs.
-        return true;
-    }
-
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
-
-    if ( empty( $body['success'] ) ) {
-        error_log( '[WP-Etik] hCaptcha: échec — ' . wp_json_encode( $body['error-codes'] ?? [] ) );
-        return false;
-    }
-
-    return true;
-}
 
 /**
  * AJAX Handler - Test configuration des webhooks
