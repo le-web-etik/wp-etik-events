@@ -75,7 +75,7 @@ add_action('admin_init', function(){
     }
 });
 
-add_action( 'wp_loaded', [ 'WP_Etik\\Etik_Modal_Manager', 'register_ajax_hooks' ] );
+//add_action( 'wp_loaded', [ 'WP_Etik\\Etik_Modal_Manager', 'register_ajax_hooks' ] );
 
 // Activation hook to create role
 register_activation_hook(__FILE__, [ 'WP_Etik\\Activator', 'activate' ]);

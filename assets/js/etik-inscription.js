@@ -90,9 +90,12 @@
  
   // ── Chargement dynamique du formulaire ────────────────────────────────────
  
+  // ── Chargement dynamique du formulaire ────────────────────────────────────
+ 
   function loadFormFields(eventId, $m, callback) {
     var cacheKey = 'event_' + eventId;
  
+    // 1. Vérifier le cache
     if (formCache[cacheKey] !== undefined) {
       callback(formCache[cacheKey]);
       return;
@@ -101,15 +104,35 @@
     var $container = $m.find('#etik-form-fields-container');
     $container.html(
       '<div class="etik-form-loading" style="text-align:center;padding:24px;color:#888;">'
-      + (window.WP_ETIK_AJAX && WP_ETIK_AJAX.i18n_loading ? WP_ETIK_AJAX.i18n_loading : 'Chargement…')
+      + 'Chargement du formulaire...'
       + '</div>'
     );
  
+    // 2. Récupération SÉCURISÉE des variables AJAX
+    var reqAjaxUrl = '/wp-admin/admin-ajax.php';
+    var reqNonce = '';
+    
+    if (window.WP_ETIK_AJAX) {
+        if (WP_ETIK_AJAX.ajax_url) reqAjaxUrl = WP_ETIK_AJAX.ajax_url;
+        if (WP_ETIK_AJAX.form_nonce) reqNonce = WP_ETIK_AJAX.form_nonce;
+    }
+
+    // DEBUG CONSOLE (À laisser temporairement pour vérifier)
+    console.log('[Etik Debug] AJAX URL:', reqAjaxUrl);
+    console.log('[Etik Debug] Nonce reçu:', reqNonce ? 'OK ( longueur: ' + reqNonce.length + ')' : 'VIDE !');
+
+    if (!reqNonce) {
+        console.error('[Etik Erreur] Le nonce form_nonce est vide. Vérifiez wp_localize_script dans PHP.');
+        callback(null, 'Erreur de configuration (nonce manquant).');
+        return;
+    }
+ 
+    // 3. Requête AJAX
     $.post(
-      (window.WP_ETIK_AJAX && WP_ETIK_AJAX.ajax_url) || '/wp-admin/admin-ajax.php',
+      reqAjaxUrl,
       {
         action:   'etik_get_form_html',
-        nonce:    (window.WP_ETIK_AJAX && WP_ETIK_AJAX.form_nonce) || '',
+        nonce:    reqNonce, // Utilisation de la variable vérifiée
         event_id: eventId,
       },
       function(res) {
@@ -117,16 +140,21 @@
           formCache[cacheKey] = res.data.html;
           callback(res.data.html);
         } else {
-          var msg = (res && res.data && res.data.message)
-            ? res.data.message
-            : 'Les inscriptions ne sont pas disponibles pour cet événement.';
+          var msg = 'Erreur inconnue.';
+          if (res && res.data && res.data.message) {
+              msg = res.data.message;
+          } else if (res && typeof res === 'string') {
+              msg = 'Réponse inattendue: ' + res.substring(0, 100);
+          }
           formCache[cacheKey] = null;
           callback(null, msg);
         }
       },
       'json'
-    ).fail(function() {
-      callback(null, 'Erreur de connexion.');
+    ).fail(function(xhr, status, error) {
+        console.error('[Etik Erreur] Échec AJAX:', status, error);
+        console.error('[Etik Erreur] Réponse brute:', xhr.responseText);
+        callback(null, 'Erreur de connexion (' + status + ').');
     });
   }
  

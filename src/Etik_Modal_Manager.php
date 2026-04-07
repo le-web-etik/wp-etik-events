@@ -27,17 +27,21 @@ class Etik_Modal_Manager {
     // ─── ASSETS ─────────────────────────────────────────────────────────────
 
     public static function maybe_enqueue_assets() : void {
-        if ( ! self::is_needed() ) return;
+        //if ( ! self::is_needed() ) return;
 
         $url  = WP_ETIK_PLUGIN_URL;
         $path = WP_ETIK_PLUGIN_DIR;
 
-        wp_enqueue_style(
-            'wp-etik-modal',
-            $url . 'assets/css/etik-modal.css',
-            [],
-            filemtime( $path . 'assets/css/etik-modal.css' )
-        );
+        // Charger le CSS seulement si nécessaire (optionnel, mais léger)
+        if ( self::is_needed() ) {
+            wp_enqueue_style(
+                'wp-etik-modal',
+                $url . 'assets/css/etik-modal.css',
+                [],
+                filemtime( $path . 'assets/css/etik-modal.css' )
+            );
+        }
+
 
         wp_register_script(
             'wp_etik_inscription_js',
@@ -366,5 +370,9 @@ class Etik_Modal_Manager {
         add_action( 'wp_ajax_nopriv_etik_get_form_html', [ static::class, 'ajax_get_form_html' ] );
     }
 }
+
+// Hooks globaux
+add_action('wp_enqueue_scripts', [Etik_Modal_Manager::class, 'maybe_enqueue_assets'], 20);
+add_action('wp_footer', [Etik_Modal_Manager::class, 'render_footer_modal'], 99);
 
 endif; // class_exists

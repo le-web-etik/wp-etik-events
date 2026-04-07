@@ -220,7 +220,7 @@ class Meta_Event {
             __( 'Formulaire d inscription', 'wp-etik-events' ),
             [$this, 'render_form_meta_box'],
             'etik_event',
-            'normal',
+            'side',
             'high'
         );
     }

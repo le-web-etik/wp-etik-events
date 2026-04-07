@@ -53,6 +53,11 @@ class Loader {
         $inscriptions = new Frontend_Inscription();
         $inscriptions->init();
 
+        require_once WP_ETIK_PLUGIN_DIR . 'src/Etik_Modal_Manager.php';
+        if ( class_exists( '\\WP_Etik\\Etik_Modal_Manager' ) ) {
+            \WP_Etik\Etik_Modal_Manager::register_ajax_hooks();
+        }
+
         // Charger les prestations
         if ( is_admin() && current_user_can( 'manage_options' ) ) {
             $prestation_settings = new \WP_Etik\Admin\Prestation_Settings();
@@ -244,7 +249,7 @@ class Loader {
             }
         }
     */
-        
+
     public function public_assets() {
 
         $dir_url  = WP_ETIK_PLUGIN_URL;

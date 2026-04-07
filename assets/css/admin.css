@@ -3,7 +3,10 @@
 .et-db #et-boc .et-l .et-fb-modules-list ul > li::before.etk_events{ content: "e";}
 
 /*** META BOX ***/
-#etik_event_meta{
+#etik_event_meta,
+#etik_event_form {
+  background-color: #e4fbff;
+}{
   background-color: #e4fbff;
 }
 .etik-meta-grid {
