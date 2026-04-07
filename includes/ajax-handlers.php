@@ -310,266 +310,294 @@ function maybe_process_confirmation() {
 
 
 /**
- * AJAX handler : créer une inscription + Checkout Session Stripe si place disponible.
+ * AJAX Handler — Créer une inscription + Checkout Session Stripe
  *
- * Reçoit POST:
- *  - event_id (int)
- *  - email, first_name, last_name, phone (optionnel)
+ * Champs POST attendus :
+ *   - event_id       (int)
+ *   - email          (string)
+ *   - first_name     (string)
+ *   - last_name      (string)
+ *   - phone          (string, optionnel)
+ *   - desired_domain (string, optionnel) — domaine souhaité par le client
+ *   - has_domain     (0|1)              — le client a-t-il déjà un domaine
+ *   - nonce          (string)
+ *   - h-captcha-response (string)       — token hCaptcha
  *
- * Retour JSON:
- *  - success: true/false
- *  - data: { status: 'pending'|'waitlist', inscription_id: int, checkout_url?: string, message?: string }
- *  - error: { code, message, debug? }
+ * Réponse JSON :
+ *   success: true  → { status, inscription_id, checkout_url? }
+ *   success: false → { code, message }
  */
 function lwe_create_checkout() {
 
     global $wpdb;
+    $table = $wpdb->prefix . 'etik_inscriptions';
 
-    // nonce
+    // ── 1. Nonce ────────────────────────────────────────────────────────────
     $nonce = isset( $_REQUEST['nonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['nonce'] ) ) : '';
     if ( ! wp_verify_nonce( $nonce, 'wp_etik_inscription_nonce' ) ) {
         wp_send_json_error( [
-            'code' => 'invalid_nonce',
-            'message' => 'Requête invalide (nonce).'
+            'code'    => 'invalid_nonce',
+            'message' => 'Requête invalide (nonce).',
         ], 400 );
     }
 
+    // ── 2. Vérification hCaptcha ────────────────────────────────────────────
+    $captcha_token = isset( $_POST['h-captcha-response'] )
+        ? sanitize_text_field( wp_unslash( $_POST['h-captcha-response'] ) )
+        : '';
+
+    if ( ! lwe_verify_hcaptcha( $captcha_token ) ) {
+        wp_send_json_error( [
+            'code'    => 'captcha_failed',
+            'message' => 'Vérification anti-robot échouée. Veuillez réessayer.',
+        ], 400 );
+    }
+
+    // ── 3. Validation des champs obligatoires ────────────────────────────────
     $event_id = isset( $_POST['event_id'] ) ? intval( $_POST['event_id'] ) : 0;
     if ( $event_id <= 0 ) {
         wp_send_json_error( [
-            'code' => 'missing_event',
-            'message' => 'ID de l\'événement manquant ou invalide.'
+            'code'    => 'missing_event',
+            'message' => "ID de l'événement manquant ou invalide.",
         ], 400 );
     }
 
-    // sanitize inputs
-    $email = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
-    if ( empty( $email ) || ! is_email( $email ) ) {
-        wp_send_json_error( [
-            'code' => 'invalid_email',
-            'message' => 'Adresse email invalide.'
-        ], 400 );
-    }
-
+    $email      = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
     $first_name = isset( $_POST['first_name'] ) ? sanitize_text_field( wp_unslash( $_POST['first_name'] ) ) : '';
-    $last_name = isset( $_POST['last_name'] ) ? sanitize_text_field( wp_unslash( $_POST['last_name'] ) ) : '';
-    $phone = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+    $last_name  = isset( $_POST['last_name'] ) ? sanitize_text_field( wp_unslash( $_POST['last_name'] ) ) : '';
+    $phone      = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
 
-    $table = $wpdb->prefix . 'etik_inscriptions';
+    // Champs spécifiques à l'événement
+    $desired_domain = isset( $_POST['desired_domain'] ) ? sanitize_text_field( wp_unslash( $_POST['desired_domain'] ) ) : '';
+    $has_domain     = isset( $_POST['has_domain'] ) ? ( intval( $_POST['has_domain'] ) ? 1 : 0 ) : 0;
 
-    // ---------------------------------------------------------------------------
-    // Vérifier la capacité de l'événement
-    $max_place = intval( get_post_meta( $event_id, 'etik_max_place', true ) );
-    if ( $max_place <= 0 ) {
-        $max_place = PHP_INT_MAX;
+    if ( ! is_email( $email ) ) {
+        wp_send_json_error( [
+            'code'    => 'invalid_email',
+            'message' => 'Adresse e-mail invalide.',
+        ], 400 );
     }
 
-    // Compter les inscriptions confirmées
+    if ( empty( $first_name ) || empty( $last_name ) ) {
+        wp_send_json_error( [
+            'code'    => 'missing_name',
+            'message' => 'Prénom et nom sont obligatoires.',
+        ], 400 );
+    }
+
+    // ── 4. Récupération de l'événement ───────────────────────────────────────
+    $event = get_post( $event_id );
+    if ( ! $event || $event->post_status !== 'publish' ) {
+        wp_send_json_error( [
+            'code'    => 'event_not_found',
+            'message' => 'Événement introuvable.',
+        ], 404 );
+    }
+
+    $event_title = get_the_title( $event_id );
+    $price_cents = intval( get_post_meta( $event_id, 'etik_event_price', true ) ) * 100;
+    $max_places  = intval( get_post_meta( $event_id, 'etik_event_max_places', true ) );
+
+    // ── 5. Vérification des places disponibles ───────────────────────────────
     $confirmed_count = (int) $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status = %s",
-        $event_id, 'confirmed'
+        "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status IN ('confirmed', 'pending')",
+        $event_id
     ) );
 
-    // Si complet → liste d'attente
-    if ( $confirmed_count >= $max_place ) {
-        $inserted = $wpdb->insert(
-            $table,
-            [
-                'event_id'      => $event_id,
-                'user_id'       => 0,
-                'email'         => $email,
-                'first_name'    => $first_name,
-                'last_name'     => $last_name,
-                'phone'         => $phone,
-                'status'        => 'waitlist',
-                'registered_at' => current_time( 'mysql' ),
-            ],
-            [ '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s' ]
-        );
-
-        if ( $inserted ) {
-            $ins_id = (int) $wpdb->insert_id;
-            wp_send_json_success( [
-                'status' => 'waitlist',
-                'inscription_id' => $ins_id,
-                'message' => __( 'L\'événement est complet. Vous êtes inscrit sur la liste d\'attente.', 'wp-etik-events' )
-            ] );
-        } else {
-            $error = $wpdb->last_error;
-            error_log( "[WP-Etik] DB Error (waitlist insert): " . $error );
-            wp_send_json_error( [
-                'code' => 'db_error_waitlist',
-                'message' => 'Erreur lors de l\'inscription sur la liste d\'attente.',
-                'debug' => defined('WP_DEBUG') && WP_DEBUG ? $error : null
-            ], 500 );
-        }
+    $status = 'pending';
+    if ( $max_places > 0 && $confirmed_count >= $max_places ) {
+        $status = 'waitlist';
     }
 
-    // ---------------------------------------------------------------------------
-    // Place disponible → créer inscription pending
-    // Utiliser la logique de création d'utilisateur + inscription
-    $user_id = wp_etik_get_or_create_user( $email, $first_name, $last_name );
-    if ( is_wp_error( $user_id ) ) {
-        wp_send_json_error( [
-            'code' => 'user_creation_failed',
-            'message' => 'Erreur lors de la création du compte utilisateur.',
-            'debug' => defined('WP_DEBUG') && WP_DEBUG ? $user_id->get_error_message() : null
-        ], 500 );
-    }
-
-    $inscription = wp_etik_get_or_update_inscription(
+    // ── 6. Vérification doublon (même email + même événement non annulé) ─────
+    $existing = $wpdb->get_var( $wpdb->prepare(
+        "SELECT id FROM {$table} WHERE event_id = %d AND email = %s AND status NOT IN ('cancelled') LIMIT 1",
         $event_id,
-        $user_id,
-        $email,
-        $first_name,
-        $last_name,
-        $phone,
-        '', // desired_domain
-        0,  // has_domain
+        $email
+    ) );
+
+    if ( $existing ) {
+        wp_send_json_error( [
+            'code'    => 'already_registered',
+            'message' => 'Cette adresse e-mail est déjà inscrite pour cet événement.',
+        ], 409 );
+    }
+
+    // ── 7. Insertion de l'inscription ────────────────────────────────────────
+    $inserted = $wpdb->insert(
+        $table,
+        [
+            'event_id'   => $event_id,
+            'email'      => $email,
+            'first_name' => $first_name,
+            'last_name'  => $last_name,
+            'phone'      => $phone,
+            'status'     => $status,
+            'created_at' => current_time( 'mysql' ),
+        ],
+        [ '%d', '%s', '%s', '%s', '%s', '%s', '%s' ]
     );
 
-    if ( is_wp_error( $inscription ) ) {
+    if ( ! $inserted ) {
+        error_log( '[WP-Etik] DB insert error: ' . $wpdb->last_error );
         wp_send_json_error( [
-            'code' => 'inscription_failed',
-            'message' => $inscription->get_error_message(),
-            'debug' => defined('WP_DEBUG') && WP_DEBUG ? $inscription->get_error_message() : null
+            'code'    => 'db_error',
+            'message' => "Erreur lors de l'enregistrement. Veuillez réessayer.",
         ], 500 );
     }
 
-    $ins_id = $inscription['id'];
+    $ins_id = $wpdb->insert_id;
 
-    // Vérifier si paiement requis
-    $payment_required = get_post_meta($event_id, '_etik_payment_required', true);
-    if (empty($payment_required) || $payment_required !== '1') {
-        wp_send_json_success( [
-            'status' => 'pending',
-            'inscription_id' => $ins_id,
-            'message' => __('Réservation enregistrée. Aucun paiement requis.', 'wp-etik-events')
-        ]);
+    // ── 8. Sauvegarde des champs spécifiques en meta ─────────────────────────
+    // Ces données sont stockées en post_meta de l'inscription pour ne pas
+    // alourdir la table principale et rester extensibles.
+    if ( $desired_domain !== '' ) {
+        update_post_meta( $ins_id, 'lwe_desired_domain', $desired_domain );
+        // Remarque : si la table etik_inscriptions a des colonnes dédiées,
+        // remplacer par un wpdb->update() sur ces colonnes.
     }
+    update_post_meta( $ins_id, 'lwe_has_domain', $has_domain );
 
-    // Chemin vers le fichier
-    $stripe_settings_file = plugin_dir_path( __FILE__ ) . '../includes/admin/Stripe_Settings.php';
-
-    if ( file_exists( $stripe_settings_file ) ) {
-        require_once $stripe_settings_file;
-    }
-
-    // Vérifier la classe Stripe
-    if ( ! class_exists( '\\WP_Etik\\Admin\\Stripe_Settings' ) ) {
+    // ── 9. Liste d'attente : pas de paiement, juste confirmation d'attente ───
+    if ( $status === 'waitlist' ) {
         wp_send_json_success( [
-            'status' => 'pending',
+            'status'         => 'waitlist',
             'inscription_id' => $ins_id,
-            'message' => __( 'Réservation enregistrée. Le paiement Stripe n\'existe pas.', 'wp-etik-events' )
+            'message'        => "L'événement est complet. Vous avez été ajouté(e) à la liste d'attente.",
         ] );
     }
 
-    $keys = \WP_Etik\Admin\Stripe_Settings::get_keys();
-    $secret = $keys['secret'] ?? '';
-    if ( empty( $secret ) ) {
+    // ── 10. Création de la session Stripe si paiement requis ─────────────────
+    if ( $price_cents <= 0 ) {
+        // Pas de paiement requis → inscription confirmée directement
+        $wpdb->update(
+            $table,
+            [ 'status' => 'confirmed' ],
+            [ 'id' => $ins_id ],
+            [ '%s' ],
+            [ '%d' ]
+        );
         wp_send_json_success( [
-            'status' => 'pending',
+            'status'         => 'confirmed',
             'inscription_id' => $ins_id,
-            'message' => __( 'Réservation enregistrée. Le paiement Stripe n\'est pas configuré.', 'wp-etik-events' )
+            'message'        => 'Inscription confirmée.',
         ] );
     }
 
-    // URL de retour (customisable)
-    $return_url = wp_etik_get_payment_return_url();
+    // Appel Stripe via la façade centralisée
+    if ( ! class_exists( '\\WP_Etik\\Stripe\\Service' ) ) {
+        wp_send_json_error( [
+            'code'    => 'stripe_unavailable',
+            'message' => 'Service de paiement non disponible.',
+        ], 500 );
+    }
 
-    $success_url = add_query_arg( [
-        'status' => 'success',
-    ], $return_url );
-
-    $cancel_url = add_query_arg( [
-        'status' => 'cancel',
-    ], $return_url );
-
-    // URLs de redirection
-    //$success_url = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'success' ], home_url( '/' ) );
-    //$cancel_url  = add_query_arg( [ 'lwe_ins' => $ins_id, 'status' => 'cancel' ], home_url( '/' ) );
-
-    //'customer_name' => trim( $first_name . ' ' . $last_name ), 
-    $body = [
-        'payment_method_types[]' => 'card',
-        'mode' => 'payment',
-        'line_items[0][price_data][currency]' => 'eur',
-        'line_items[0][price_data][product_data][name]' => 'Acompte réservation',
-        'line_items[0][price_data][unit_amount]' => 5000, // 100 €
-        'line_items[0][quantity]' => 1,
+    $checkout = \WP_Etik\Stripe\Service::create_checkout_session( [
+        'amount'         => $price_cents,
+        'currency'       => 'eur',
+        'product_name'   => $event_title,
         'customer_email' => $email,
-        'metadata[inscription_id]' => (string) $ins_id,
-        'metadata[event_id]' => (string) $event_id,
-        'success_url' => $success_url,
-        'cancel_url' => $cancel_url,
-    ];
-
-    $args = [
-        'body' => $body,
-        'headers' => [
-            'Authorization' => 'Bearer ' . $secret,
-            'Content-Type'  => 'application/x-www-form-urlencoded',
+        'metadata'       => [
+            'inscription_id' => (string) $ins_id,
+            'event_id'       => (string) $event_id,
         ],
-        'timeout' => 20,
-    ];
+        'success_url'    => home_url( '?status=success' ),
+        'cancel_url'     => home_url( '?status=cancel' ),
+    ] );
 
-    $response = wp_remote_post( 'https://api.stripe.com/v1/checkout/sessions', $args );
-
-    if ( is_wp_error( $response ) ) {
-        $error_msg = $response->get_error_message();
-        error_log( "[WP-Etik] Stripe network error: " . $error_msg );
+    if ( is_wp_error( $checkout ) ) {
+        error_log( '[WP-Etik] Stripe session error: ' . $checkout->get_error_message() );
         wp_send_json_error( [
-            'code' => 'stripe_network_error',
-            'message' => 'Erreur réseau lors de la création de la session Stripe.',
-            'debug' => defined('WP_DEBUG') && WP_DEBUG ? $error_msg : null
+            'code'    => 'stripe_error',
+            'message' => 'Erreur lors de la création du paiement : ' . $checkout->get_error_message(),
         ], 502 );
     }
 
-    $code = wp_remote_retrieve_response_code( $response );
-    $resp_body = wp_remote_retrieve_body( $response );
-    $data = json_decode( $resp_body, true );
-
-    if ( $code !== 200 && $code !== 201 ) {
-        $error_msg = $data['error']['message'] ?? 'Erreur inconnue';
-        error_log( "[WP-Etik] Stripe API error: " . print_r( $data, true ) );
-        wp_send_json_error( [
-            'code' => 'stripe_api_error',
-            'message' => 'Erreur Stripe : ' . $error_msg,
-            'debug' => defined('WP_DEBUG') && WP_DEBUG ? $data : null
-        ], 502 );
-    }
-
-    $session_id = $data['id'] ?? '';
-    $checkout_url = $data['url'] ?? '';
+    $session_id   = $checkout['id'] ?? '';
+    $checkout_url = $checkout['url'] ?? '';
 
     if ( $session_id ) {
-        $updated = $wpdb->update(
+        $wpdb->update(
             $table,
             [ 'payment_session_id' => $session_id ],
             [ 'id' => $ins_id ],
             [ '%s' ],
             [ '%d' ]
         );
+    }
 
-        if ( $updated === false ) {
-            $error = $wpdb->last_error;
-            error_log( "[WP-Etik] DB Error (update session_id): " . $error );
+    if ( empty( $checkout_url ) ) {
+        wp_send_json_error( [
+            'code'    => 'stripe_no_url',
+            'message' => 'Aucune URL de paiement retournée par Stripe.',
+        ], 500 );
+    }
+
+    wp_send_json_success( [
+        'status'         => 'pending',
+        'inscription_id' => $ins_id,
+        'checkout_url'   => $checkout_url,
+    ] );
+}
+
+// ── Enregistrement des hooks AJAX ────────────────────────────────────────────
+add_action( 'wp_ajax_lwe_create_checkout',        'lwe_create_checkout' );
+add_action( 'wp_ajax_nopriv_lwe_create_checkout', 'lwe_create_checkout' );
+
+
+/**
+ * Vérifie le token hCaptcha côté serveur.
+ *
+ * La clé secrète hCaptcha doit être enregistrée dans :
+ *   Réglages → WP-Etik → Sécurité → hCaptcha Secret Key
+ * (option WordPress : 'lwe_hcaptcha_secret')
+ *
+ * @param  string $token  Le token envoyé par le widget (h-captcha-response).
+ * @return bool           true si valide, false sinon.
+ */
+function lwe_verify_hcaptcha( string $token ) : bool {
+
+    // Si pas de token, échec immédiat.
+    if ( empty( $token ) ) {
+        return false;
+    }
+
+    $secret = get_option( 'lwe_hcaptcha_secret', '' );
+
+    // En dev/staging, si aucun secret configuré → on laisse passer
+    // (pratique pour les tests locaux, à désactiver en prod).
+    if ( empty( $secret ) ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[WP-Etik] hCaptcha: secret non configuré — vérification ignorée (WP_DEBUG actif).' );
+            return true;
         }
+        // En production sans secret → refus par sécurité.
+        error_log( '[WP-Etik] hCaptcha: secret non configuré en production.' );
+        return false;
     }
 
-    if ( ! empty( $checkout_url ) ) {
-        wp_send_json_success( [
-            'status' => 'pending',
-            'inscription_id' => $ins_id,
-            'checkout_url' => $checkout_url
-        ] );
+    $response = wp_remote_post( 'https://hcaptcha.com/siteverify', [
+        'timeout' => 10,
+        'body'    => [
+            'secret'   => $secret,
+            'response' => $token,
+        ],
+    ] );
+
+    if ( is_wp_error( $response ) ) {
+        error_log( '[WP-Etik] hCaptcha: erreur réseau — ' . $response->get_error_message() );
+        // En cas de timeout réseau on laisse passer pour ne pas bloquer les vrais utilisateurs.
+        return true;
     }
 
-    wp_send_json_error( [
-        'code' => 'stripe_no_url',
-        'message' => 'Aucune URL de paiement retournée par Stripe.',
-        'debug' => defined('WP_DEBUG') && WP_DEBUG ? $data : null
-    ], 500 );
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( empty( $body['success'] ) ) {
+        error_log( '[WP-Etik] hCaptcha: échec — ' . wp_json_encode( $body['error-codes'] ?? [] ) );
+        return false;
+    }
+
+    return true;
 }
 
 /**
