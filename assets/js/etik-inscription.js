@@ -311,45 +311,126 @@
 
   // ── Soumission formulaire inscription ─────────────────────────────────────────
 
+  // ── Soumission formulaire inscription ────────────────────────────────────────
+
   $(document).on('submit', '.etik-insc-form', function(e){
     e.preventDefault();
     var $form = $(this);
     var $m    = $form.closest('.etik-modal');
     clearFeedback($m);
 
-    var first_name     = $.trim($form.find('input[name="first_name"]').val()     || '');
-    var last_name      = $.trim($form.find('input[name="last_name"]').val()      || '');
-    var email          = $.trim($form.find('input[name="email"]').val()          || '');
-    var phone          = $.trim($form.find('input[name="phone"]').val()          || '');
-    var desired_domain = $.trim($form.find('input[name="desired_domain"]').val() || '');
-    var has_domain     = $form.find('input[name="has_domain"]').is(':checked') ? 1 : 0;
-    var event_id       = $.trim($form.find('input[name="event_id"]').val()       || '');
-
-    // Validation côté client
-    if (!first_name || !email || !phone || !event_id) {
-      showFeedback($m, 'error', 'Veuillez remplir les champs obligatoires : Prénom, E-mail et Téléphone.');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      showFeedback($m, 'error', 'Adresse e-mail invalide.');
+    var event_id = $.trim($form.find('input[name="event_id"]').val() || '');
+    if (!event_id) {
+      showFeedback($m, 'error', 'Événement introuvable.');
       return;
     }
 
-    var action = $form.find('input[name="action"]').val() || 'lwe_create_checkout';
+    // ── 1. Validation dynamique ───────────────────────────────────────────────
+    // On parcourt TOUS les champs requis du formulaire tel qu'il a été rendu,
+    // sans présumer de leurs noms. Chaque champ requis porte l'attribut
+    // [required] ou [data-required="1"] posé par render_form_fields().
 
-    var postData = {
-      action:         action,
-      first_name:     first_name,
-      last_name:      last_name,
-      email:          email,
-      phone:          phone,
-      desired_domain: desired_domain,
-      has_domain:     has_domain,
-      event_id:       event_id,
-      nonce:          globalNonce
-    };
+    var missing = [];
 
-    // hCaptcha
+    $form.find('#etik-form-fields-container')
+         .find('input, select, textarea')
+         .not('[type="hidden"]')
+         .not('[disabled]')
+         .each(function(){
+            var $el       = $(this);
+            var isRequired = $el.prop('required') || $el.data('required') == 1;
+            if (!isRequired) return; // champ optionnel → on skip
+
+            var val  = $.trim($el.val() || '');
+            var type = ($el.attr('type') || '').toLowerCase();
+
+            // Gestion checkbox standalone (consent, etc.)
+            if (type === 'checkbox' && !$el.is(':checked')) {
+              val = '';
+            }
+
+            // Gestion groupe checkbox (checkbox_group) :
+            // au moins une case cochée dans le groupe
+            if (type === 'checkbox') {
+              var name    = $el.attr('name') || '';
+              var checked = $form.find('input[type="checkbox"][name="' + name + '"]:checked').length;
+              if (checked === 0) {
+                val = '';
+              } else {
+                val = 'ok'; // groupe valide
+              }
+            }
+
+            if (!val) {
+              // Retrouver le label associé pour un message utile
+              var fieldName = $el.attr('name') || '';
+              var $label    = $form.find('label[for="' + $el.attr('id') + '"]');
+              var labelText = $.trim($label.text().replace('*', '').replace(':', '')) || fieldName;
+              missing.push(labelText);
+            }
+         });
+
+    // Valider aussi l'email si présent (format)
+    var $emailField = $form.find('input[type="email"], input[name="email"]').first();
+    if ($emailField.length) {
+      var emailVal = $.trim($emailField.val() || '');
+      if (emailVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+        showFeedback($m, 'error', 'Adresse e-mail invalide.');
+        $emailField.focus();
+        return;
+      }
+    }
+
+    if (missing.length) {
+      showFeedback($m, 'error',
+        'Veuillez remplir les champs obligatoires : ' + missing.join(', ') + '.'
+      );
+      // Focus sur le premier champ manquant
+      $form.find('#etik-form-fields-container')
+           .find('[required], [data-required="1"]')
+           .filter(function(){ return !$.trim($(this).val()); })
+           .first().focus();
+      return;
+    }
+
+    // ── 2. Collecte dynamique de TOUS les champs nommés du formulaire ─────────
+    // On ne hardcode plus first_name/email/phone : on sérialise tout.
+
+    var postData = { action: 'lwe_create_checkout', event_id: event_id, nonce: globalNonce };
+
+    $form.find('#etik-form-fields-container')
+         .find('input, select, textarea')
+         .not('[disabled]')
+         .each(function(){
+            var $el  = $(this);
+            var name = $el.attr('name');
+            if (!name) return;
+
+            var type = ($el.attr('type') || '').toLowerCase();
+
+            // Ignorer les cases non cochées (sauf si elles sont seules dans leur groupe)
+            if (type === 'checkbox') {
+              if ($el.is(':checked')) {
+                // Valeur envoyée quand cochée
+                postData[name] = $el.val() || '1';
+              } else {
+                // Si déjà dans postData (groupe) → on ne réécrit pas
+                if (!(name in postData)) postData[name] = '0';
+              }
+              return;
+            }
+
+            // Radio : ne garder que le bouton sélectionné
+            if (type === 'radio') {
+              if ($el.is(':checked')) postData[name] = $el.val();
+              return;
+            }
+
+            // Champ texte/email/tel/select/textarea
+            postData[name] = $.trim($el.val() || '');
+         });
+
+    // ── 3. hCaptcha ───────────────────────────────────────────────────────────
     if (hcaptchaSiteKey && typeof hcaptcha !== 'undefined') {
       var widgetId = $m.data(HCAPTCHA_WIDGET_KEY);
       if (widgetId !== undefined) {
@@ -362,42 +443,53 @@
       }
     }
 
-    var $submit = $form.find('button[type="submit"]').prop('disabled', true);
-    showFeedback($m, '', 'Envoi en cours…');
+    // ── 4. Envoi AJAX ─────────────────────────────────────────────────────────
+    var $btn = $form.find('.etik-submit-btn');
+    $btn.prop('disabled', true).addClass('etik-loading');
 
     $.post(ajaxUrl, postData, function(resp){
-      $submit.prop('disabled', false);
+      $btn.prop('disabled', false).removeClass('etik-loading');
 
-      if (resp && resp.success) {
-        var data = resp.data || {};
+      if (resp.success) {
+        var d = resp.data || {};
 
-        // Redirection Stripe Checkout si URL fournie
-        if (data.checkout_url) {
-          showFeedback($m, 'success', 'Redirection vers le paiement…');
-          setTimeout(function(){ window.location.href = data.checkout_url; }, 800);
+        if (d.checkout_url) {
+          window.location.href = d.checkout_url;
           return;
         }
 
-        showFeedback($m, 'success', data.message || 'Inscription enregistrée. Vérifiez votre e-mail pour confirmer.');
-        setTimeout(function(){ closeModal($m); }, 2200);
+        if (d.status === 'waitlist') {
+          showFeedback($m, 'info', d.message || "Vous avez été ajouté(e) à la liste d'attente.");
+          return;
+        }
+
+        if (d.status === 'confirmed') {
+          showFeedback($m, 'success', d.message || 'Inscription confirmée !');
+          return;
+        }
+
+        showFeedback($m, 'success', d.message || 'Inscription enregistrée.');
 
       } else {
-        var msg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Une erreur est survenue.';
-        showFeedback($m, 'error', msg);
-        // Reset hCaptcha
-        try {
-          var w = $m.data(HCAPTCHA_WIDGET_KEY);
-          if (typeof hcaptcha !== 'undefined' && w !== undefined) { hcaptcha.reset(w); }
-        } catch(err) {}
+        var errMsg = (resp.data && resp.data.message)
+          ? resp.data.message
+          : 'Une erreur est survenue. Veuillez réessayer.';
+
+        // Réinitialiser hCaptcha si le token était invalide
+        if (resp.data && resp.data.code === 'captcha_failed') {
+          if (typeof hcaptcha !== 'undefined') {
+            var wId = $m.data(HCAPTCHA_WIDGET_KEY);
+            if (wId !== undefined) hcaptcha.reset(wId);
+          }
+        }
+
+        showFeedback($m, 'error', errMsg);
       }
-    }, 'json').fail(function(){
-      $submit.prop('disabled', false);
+    }).fail(function(){
+      $btn.prop('disabled', false).removeClass('etik-loading');
       showFeedback($m, 'error', 'Erreur réseau. Veuillez réessayer.');
-      try {
-        var w2 = $m.data(HCAPTCHA_WIDGET_KEY);
-        if (typeof hcaptcha !== 'undefined' && w2 !== undefined) { hcaptcha.reset(w2); }
-      } catch(err) {}
     });
+
   });
 
   // ── Init ──────────────────────────────────────────────────────────────────────
