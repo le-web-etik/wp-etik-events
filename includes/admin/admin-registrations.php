@@ -466,6 +466,11 @@ class Registrations_Admin {
             ARRAY_A
         );
 
+        // Déchiffrer les données pour affichage admin
+        if ( function_exists( '\\WP_Etik\\lwe_decrypt_inscription_data' ) ) {
+            $rows = array_map( '\\WP_Etik\\lwe_decrypt_inscription_data', $rows );
+        }
+
         if ( $rows === null ) {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) error_log( '[WP_ETIK] DB error: ' . $wpdb->last_error );
             wp_send_json_error( __( 'Erreur serveur', 'wp-etik-events' ), 500 );

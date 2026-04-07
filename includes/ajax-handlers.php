@@ -27,13 +27,16 @@ add_action( 'wp_ajax_wp_etik_handle_inscription', __NAMESPACE__ . '\\handle_insc
 
 add_action( 'init', __NAMESPACE__ . '\\maybe_process_confirmation' );
 
-add_action( 'wp_ajax_nopriv_lwe_create_checkout',  __NAMESPACE__ . '\\lwe_create_checkout' );
-add_action( 'wp_ajax_lwe_create_checkout',  __NAMESPACE__ . '\\lwe_create_checkout' );
+//add_action( 'wp_ajax_nopriv_lwe_create_checkout',  __NAMESPACE__ . '\\lwe_create_checkout' );
+//add_action( 'wp_ajax_lwe_create_checkout',  __NAMESPACE__ . '\\lwe_create_checkout' );
 
 add_action( 'wp_ajax_lwe_test_webhook',  __NAMESPACE__ . '\\lwe_test_webhook' );
 
 
 require_once WP_ETIK_PLUGIN_DIR . 'includes/ajax-handlers-functions.php';
+
+require_once WP_ETIK_PLUGIN_DIR . 'includes/lwe-field-helpers.php';
+require_once WP_ETIK_PLUGIN_DIR . 'includes/ajax-handler-checkout.php';
 
 
 /**
@@ -327,6 +330,7 @@ function maybe_process_confirmation() {
  *   success: true  → { status, inscription_id, checkout_url? }
  *   success: false → { code, message }
  */
+/*
 function lwe_create_checkout() {
  
     global $wpdb;
@@ -545,6 +549,7 @@ function lwe_create_checkout() {
         'checkout_url'   => $checkout_url,
     ] );
 }
+*/
 
 
 

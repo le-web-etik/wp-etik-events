@@ -206,6 +206,10 @@ function wp_etik_send_confirmation_email_after_payment(
         ARRAY_A
     );
 
+    if ( function_exists( '\\WP_Etik\\lwe_decrypt_inscription_data' ) ) {
+        $inscription = \WP_Etik\lwe_decrypt_inscription_data( $inscription );
+    }
+
     if ( ! $inscription ) {
         return;
     }

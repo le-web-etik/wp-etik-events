@@ -24,6 +24,7 @@ class Activator {
             event_id BIGINT UNSIGNED NOT NULL,
             user_id BIGINT UNSIGNED NULL,
             email VARCHAR(191) NOT NULL,
+            email_hash VARCHAR(64) NULL,
             first_name VARCHAR(120) NULL,
             last_name VARCHAR(120) NULL,
             phone VARCHAR(50) NULL,
@@ -34,16 +35,22 @@ class Activator {
             token_expires DATETIME NULL,
             registered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             payment_session_id VARCHAR(255) NULL,  
+            custom_data LONGTEXT NULL,  
             amount INT NULL,                    
-            reserved_at DATETIME NULL,          
+            reserved_at DATETIME NULL,  
             PRIMARY KEY (id),
             UNIQUE KEY event_user_unique (event_id, user_id),
             KEY event_idx (event_id),
-            KEY email_idx (email)
+            KEY email_idx (email),
+            KEY email_hash_idx (email_hash),
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql );
+
+        // Migration : colonnes custom_data + email_hash
+        require_once WP_ETIK_PLUGIN_DIR . 'includes/migrations/add-custom-data-column.php';
+        \WP_Etik\Migrations\add_custom_data_column();
 
         // Créer les tables pour les prestations
         self::create_prestation_tables();

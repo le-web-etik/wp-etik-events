@@ -206,12 +206,14 @@ class Etik_Modal_Manager {
                  . '</p>';
         }
 
-        $html = '';
+        //$html = '';
+        $html = '<input type="hidden" name="form_id" value="' . esc_attr( $form_id ) . '">';
         foreach ( $fields as $field ) {
             $html .= self::render_single_field( $field );
         }
         return $html;
     }
+
 
     /**
      * Rendu d'un seul champ selon son type.
