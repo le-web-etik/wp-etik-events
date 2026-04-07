@@ -495,7 +495,7 @@ function lwe_create_checkout() {
         'mode' => 'payment',
         'line_items[0][price_data][currency]' => 'eur',
         'line_items[0][price_data][product_data][name]' => 'Acompte réservation',
-        'line_items[0][price_data][unit_amount]' => 10000, // 100 €
+        'line_items[0][price_data][unit_amount]' => 5000, // 100 €
         'line_items[0][quantity]' => 1,
         'customer_email' => $email,
         'metadata[inscription_id]' => (string) $ins_id,
