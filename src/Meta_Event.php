@@ -40,6 +40,7 @@ class Meta_Event {
         $start = get_post_meta($post->ID, 'etik_start_date', true);
         $end = get_post_meta($post->ID, 'etik_end_date', true);
         $price = get_post_meta($post->ID, 'etik_price', true);
+        $acompte = get_post_meta($post->ID, 'etik_acompte', true);
         $lieux  = get_post_meta($post->ID, 'etik_lieux', true);
         $discount = get_post_meta($post->ID, '_etik_discount', true);
         $payment_required = get_post_meta($post->ID, '_etik_payment_required', true);
@@ -60,6 +61,11 @@ class Meta_Event {
                 <div class="etik-meta-field">
                     <label><?php _e('Prix','wp-etik-events'); ?></label>
                     <input type="number" step="0.01" name="etik_price" value="<?php echo esc_attr($price); ?>" />
+                </div>
+
+                <div class="etik-meta-field">
+                    <label><?php _e('Acompte','wp-etik-events'); ?></label>
+                    <input type="number" step="0.01" name="etik_acompte" value="<?php echo esc_attr($acompte); ?>" />
                 </div>
 
                 <div class="etik-meta-field">
@@ -118,6 +124,10 @@ class Meta_Event {
 
         $price_val = isset($_POST['etik_price']) ? floatval($_POST['etik_price']) : 0;
         update_post_meta($post_id, 'etik_price', $price_val);
+
+        $acompte_val = isset($_POST['etik_acompte']) ? floatval($_POST['etik_acompte']) : 0;
+        update_post_meta($post_id, 'etik_acompte', $acompte_val);
+        
 
         $discount_val = isset($_POST['etik_discount']) ? floatval($_POST['etik_discount']) : 0;
         update_post_meta($post_id, '_etik_discount', $discount_val);
