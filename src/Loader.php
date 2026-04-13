@@ -53,6 +53,10 @@ class Loader {
         $inscriptions = new Frontend_Inscription();
         $inscriptions->init();
 
+        require_once WP_ETIK_PLUGIN_DIR . 'src/Etik_User_Manager.php';
+        require_once WP_ETIK_PLUGIN_DIR . 'src/Etik_Rgpd.php';
+        ( new \WP_Etik\Etik_Rgpd() )->init();
+
         require_once WP_ETIK_PLUGIN_DIR . 'src/Etik_Modal_Manager.php';
         if ( class_exists( '\\WP_Etik\\Etik_Modal_Manager' ) ) {
             \WP_Etik\Etik_Modal_Manager::register_ajax_hooks();
