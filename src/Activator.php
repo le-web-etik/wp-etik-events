@@ -18,6 +18,19 @@ class Activator {
         $cpt = new CPT_Event();
         $cpt->register();
 
+        // =========================================================================
+        // GÉNÉRATION DE LA CLÉ DE HACHAGE (ETIK_HASH_KEY)
+        // =========================================================================
+        // On vérifie si la clé existe déjà dans les options.
+        // Si NON, on en génère une nouvelle aléatoire et on la sauvegarde DÉFINITIVEMENT.
+        if ( ! get_option( 'etik_hash_key' ) ) {
+            // Génère une chaîne aléatoire de 64 caractères
+            $random_key = bin2hex( random_bytes( 32 ) );
+            update_option( 'etik_hash_key', $random_key );
+            
+            error_log( '[WP-Etik] ETIK_HASH_KEY générée et sauvegardée avec succès.' );
+        }
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
         // 2. Création des tables principales
@@ -27,12 +40,16 @@ class Activator {
         self::create_form_tables();           // Formulaires dynamiques
         self::create_form_responses_table();  // Réponses au Formulaires
 
-        
-
         // 3. Exécution des migrations (ajout de colonnes si mises à jour)
-        if (file_exists(WP_ETIK_PLUGIN_DIR . 'includes/migrations/add-custom-data-column.php')) {
+        /*if (file_exists(WP_ETIK_PLUGIN_DIR . 'includes/migrations/add-custom-data-column.php')) {
             require_once WP_ETIK_PLUGIN_DIR . 'includes/migrations/add-custom-data-column.php';
             \WP_Etik\Migrations\add_custom_data_column();
+        }*/
+
+        // NOUVELLE MIGRATION CRITIQUE (Peuplement + Liaison + Nettoyage)
+        if (file_exists(WP_ETIK_PLUGIN_DIR . 'includes/migrations/migrate-to-encrypted-users.php')) {
+            require_once WP_ETIK_PLUGIN_DIR . 'includes/migrations/migrate-to-encrypted-users.php';
+            \WP_Etik\Migrations\migrate_to_encrypted_users();
         }
 
         // 4. Nettoyage des règles de réécriture

@@ -94,6 +94,18 @@ function handle_stripe_webhook( \WP_REST_Request $request ) : \WP_REST_Response 
     // ── Paiement confirmé ───────────────────────────────────────────────────
     if ( $type === 'checkout.session.completed' ) {
 
+
+        /*// Dans handle_stripe_webhook()
+        $type = $event['data']['object']['metadata']['type'] ?? '';
+
+        if ( $type === 'inscription' ) {
+            // Logique événement : Mail de confirmation event, mise à jour table inscriptions
+            handle_event_confirmation( $inscription_id );
+        } elseif ( $type === 'reservation' ) {
+            // Logique prestation : Mail de rappel RDV, mise à jour table reservations
+            handle_prestation_confirmation( $reservation_id );
+        }*/
+
         $session = $event['data']['object'] ?? null;
 
         if ( $session ) {

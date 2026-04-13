@@ -182,12 +182,36 @@ class Etik_User_Manager {
         }
     }
 
-    private static function hash_email(string $email): string {
-        // Utilise la fonction existante si dispo, sinon HMAC simple
-        if (function_exists('WP_Etik\lwe_email_search_hash')) {
-            return \WP_Etik\lwe_email_search_hash($email);
+    /**
+     * Génère un hash HMAC stable pour la recherche d'email.
+     * 
+     * SÉCURITÉ : Utilise une constante dédiée ETIK_HASH_KEY si définie.
+     * Si AUTH_KEY change (migration, rotation), la déduplication doit rester fonctionnelle.
+     * 
+     * @param string $email
+     * @return string
+     */
+    public static function hash_email( string $email ) : string {
+        $normalized = trim( strtolower( sanitize_email( $email ) ) );
+        
+        // 1. Récupérer la clé stockée en base de données (Option 'etik_hash_key')
+        $key = get_option( 'etik_hash_key' );
+
+        // 2. Fallback de sécurité si l'option n'existe pas (ex: bug base de données)
+        if ( empty( $key ) ) {
+            // Tente de lire la constante si définie manuellement dans wp-config
+            if ( defined( 'ETIK_HASH_KEY' ) && ETIK_HASH_KEY ) {
+                $key = ETIK_HASH_KEY;
+            } elseif ( defined( 'AUTH_KEY' ) && AUTH_KEY ) {
+                $key = AUTH_KEY;
+            } else {
+                // Dernier recours (NON recommandé pour la prod)
+                $key = 'etik_fallback_salt_CRITICAL_ERROR'; 
+                error_log( '[WP-Etik] CRITICAL: No hash key found anywhere. Using fallback.' );
+            }
         }
-        return hash_hmac('sha256', strtolower(trim($email)), defined('AUTH_KEY') ? AUTH_KEY : 'etik_fallback_key');
+
+        return hash_hmac( 'sha256', $normalized, $key );
     }
 
     private static function decrypt_row(array $row): array {
