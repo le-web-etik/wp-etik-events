@@ -10,6 +10,7 @@ class Registrations_Admin {
     // méthode init() ou constructeur de Registrations_Admin
     public function init() {
         add_action( 'admin_menu', [ $this, 'add_menu' ] );
+        add_action( 'admin_menu', [ $this, 'wp_etik_reorganize_admin_menu' ], 999 );
         add_action( 'admin_post_wp_etik_export_registrations', [ $this, 'export_registrations' ] ); // si tu veux garder export coté handler, sinon tu peux supprimer
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
 
@@ -28,7 +29,65 @@ class Registrations_Admin {
             'wp-etik-registrations',
             [ $this, 'page_events_list' ]
         );
+
+        // Masquer "Ajouter un événement" (sous-menu de "Événements")
+        remove_submenu_page('edit.php?post_type=etik_event', 'post-new.php?post_type=etik_event');
+
     }
+
+
+    public function wp_etik_reorganize_admin_menu() {
+        global $submenu;
+
+        $post_type       = 'etik_event';
+        $events_menu_key = "edit.php?post_type={$post_type}";
+
+        if ( ! isset( $submenu[ $events_menu_key ] ) ) {
+            return;
+        }
+
+        $new_menu = [];
+
+        foreach ( $submenu[ $events_menu_key ] as $item ) {
+            $slug = $item[2];
+
+            if ( $slug === $events_menu_key ) {
+                $new_menu['events']        = $item;
+            } elseif ( strpos( $slug, 'wp-etik-registrations' ) !== false ) {
+                $new_menu['registrations'] = $item;
+            } elseif ( strpos( $slug, 'wp-etik-prestation' ) !== false ) {
+                $new_menu['prestations']   = $item;
+            } elseif ( strpos( $slug, 'wp-etik-reservations' ) !== false ) {
+                $new_menu['reservations']  = $item;
+            } elseif ( strpos( $slug, 'wp-etik-forms' ) !== false ) {   // ← AJOUTÉ
+                $new_menu['forms']         = $item;
+            } elseif ( strpos( $slug, 'wp-etik-parametres' ) !== false ) {
+                $new_menu['params']        = $item;
+            }
+        }
+
+        // Ordre logique — 'forms' ajouté avant 'params'
+        $ordered_keys = [
+            'events',
+            'registrations',
+            'prestations',
+            'reservations',
+            'forms',    // ← AJOUTÉ
+            'params',
+        ];
+
+        $sorted_menu = [];
+        foreach ( $ordered_keys as $key ) {
+            if ( isset( $new_menu[ $key ] ) ) {
+                $sorted_menu[] = $new_menu[ $key ];
+            }
+        }
+
+        $submenu[ $events_menu_key ] = $sorted_menu;
+
+        remove_submenu_page( $events_menu_key, 'post-new.php?post_type=' . $post_type );
+    }
+
 
     public function enqueue_assets( $hook ) {
         // limiter au bon hook/page
@@ -406,6 +465,11 @@ class Registrations_Admin {
             ),
             ARRAY_A
         );
+
+        // Déchiffrer les données pour affichage admin
+        if ( function_exists( '\\WP_Etik\\lwe_decrypt_inscription_data' ) ) {
+            $rows = array_map( '\\WP_Etik\\lwe_decrypt_inscription_data', $rows );
+        }
 
         if ( $rows === null ) {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) error_log( '[WP_ETIK] DB error: ' . $wpdb->last_error );

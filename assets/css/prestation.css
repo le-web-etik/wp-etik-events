@@ -1,0 +1,99 @@
+.etik-calendar {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0.5rem;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 0 6px #ddd;
+}
+
+.etik-calendar h3 {
+    text-align: center;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.2em;
+}
+
+.etik-calendar-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.etik-calendar-table th,
+.etik-calendar-table td {
+    padding: 0.5rem;
+    text-align: center;
+    border: 1px solid #ddd;
+}
+
+.etik-calendar-day-available {
+    background: #46b450;
+    color: #fff;
+    font-weight: bold;
+}
+
+/*****************************************************************************/
+/* Modale */
+.etik-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+
+.etik-modal[aria-hidden="false"] {
+    display: flex;
+}
+
+.etik-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+}
+
+.etik-modal-dialog {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 540px;
+    margin: 16px;
+}
+
+.etik-modal-content {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: 0 20px 48px rgba(8,12,20,0.18);
+}
+
+.etik-modal-close {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    background: transparent;
+    border: 0;
+    font-size: 22px;
+    cursor: pointer;
+}
+
+.etik-form-actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.etik-btn {
+    background: #0b7a4b;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 0;
+    cursor: pointer;
+}
+
+.etik-btn:hover {
+    background: #0a6941;
+}

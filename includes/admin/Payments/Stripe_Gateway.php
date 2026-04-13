@@ -36,7 +36,18 @@ class Stripe_Gateway extends Abstract_Gateway {
         $expected = rest_url('lwe/v1/stripe-webhook');
 
         // Vérifier si on a déjà un résultat de test (option) sinon exécuter la vérif live
-        $check = \WP_Etik\Admin\Payments\Webhook_Checker::check_stripe_webhook( $keys['secret'], $expected );
+        $cache_key = 'lwe_stripe_webhook_check_' . md5( $keys['secret'] );
+        $check = get_transient( $cache_key );
+
+        if ( $check === false ) {
+            $check = \WP_Etik\Admin\Payments\Webhook_Checker::check_stripe_webhook(
+                $keys['secret'],
+                $expected
+            );
+            // Stocker 10 min, ou 1 min si erreur réseau
+            $expiration = $check['success'] ? 10 * MINUTE_IN_SECONDS : MINUTE_IN_SECONDS;
+            set_transient( $cache_key, $check, $expiration );
+        }
 
         // Nonce pour le test
         $nonce_webhook = wp_create_nonce( 'lwe_test_webhook_nonce' );
@@ -170,6 +181,11 @@ class Stripe_Gateway extends Abstract_Gateway {
         if ( $new_value === '' ) {
             return get_option( self::OPT_SECRET_ENC, '' );
         }
+
+        // Invalider le cache webhook quand la clé change
+        $old_keys  = $this->get_keys();
+        $cache_key = 'lwe_stripe_webhook_check_' . md5( $old_keys['secret'] );
+        delete_transient( $cache_key );
 
         $sanitized = sanitize_text_field( $new_value );
 

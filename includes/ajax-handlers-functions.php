@@ -39,7 +39,19 @@ function json_success( $data = [] ) {
  * Returns true if OK, or false on failure (and optionally sets $error_msg).
  */
 function verify_hcaptcha( $token, &$error_msg = '' ) {
-    $secret = defined( 'WP_ETIK_HCAPTCHA_SECRET' ) ? WP_ETIK_HCAPTCHA_SECRET : get_option( 'wp_etik_hcaptcha_secret', '' );
+    //$secret = defined( 'WP_ETIK_HCAPTCHA_SECRET' ) ? WP_ETIK_HCAPTCHA_SECRET : get_option( 'wp_etik_hcaptcha_secret', '' );
+    
+    // ✅ Priorité : constante > option chiffrée via Payments_Settings
+    if ( defined('WP_ETIK_HCAPTCHA_SECRET') && WP_ETIK_HCAPTCHA_SECRET ) {
+        $secret = WP_ETIK_HCAPTCHA_SECRET;
+    } elseif ( class_exists('\\WP_Etik\\Admin\\Payments_Settings') ) {
+        $secret = \WP_Etik\Admin\Payments_Settings::get_hcaptcha_secret();
+    } else {
+        // Fallback ancien comportement
+        $secret = get_option('wp_etik_hcaptcha_secret', '');
+    }
+
+    
     if ( empty( $secret ) ) {
         return true; // not configured -> skip
     }

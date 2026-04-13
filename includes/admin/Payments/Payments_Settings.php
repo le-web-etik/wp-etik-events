@@ -79,6 +79,17 @@ class Payments_Settings {
             'sanitize_callback' => 'esc_url_raw', 
             'default' => home_url( '/confirmation_de_paiement/' ), 
         ] );
+
+        register_setting( self::OPTION_GROUP, 'wp_etik_hcaptcha_sitekey', [
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => '',
+        ]);
+
+        register_setting( self::OPTION_GROUP, 'wp_etik_hcaptcha_secret', [
+            'sanitize_callback' => [ $this, 'sanitize_and_encrypt_hcaptcha_secret' ],
+            'default' => '',
+        ]);
+
     }
 
     public function enqueue_assets( $hook ) : void {
@@ -128,9 +139,12 @@ class Payments_Settings {
 
                 // render fields for each gateway
                 foreach ( $this->gateways as $gw ) {
-                    
                     $gw->render_fields();
                 }
+
+                // Section hCaptcha
+                $this->render_hcaptcha_section();
+
                 submit_button( __( 'Enregistrer', 'wp-etik-events' ) );
                 ?>
             </form>
@@ -258,8 +272,156 @@ class Payments_Settings {
         <?php
     }
  
+    // Chiffrer le secret hCaptcha comme les clés Stripe/Mollie
+    public function sanitize_and_encrypt_hcaptcha_secret( $new_value ) : string {
+        $new_value = trim( (string) $new_value );
+        if ( $new_value === '' ) {
+            return get_option( 'wp_etik_hcaptcha_secret', '' );
+        }
 
+        $sanitized = sanitize_text_field( $new_value );
+
+        if ( class_exists( '\\WP_Etik\\Encryption' ) ) {
+            try {
+                $enc = \WP_Etik\Encryption::encrypt( $sanitized );
+                return $enc['ciphertext'];
+            } catch ( \Exception $e ) {
+                return get_option( 'wp_etik_hcaptcha_secret', '' );
+            }
+        }
+
+        // Fallback : ne pas stocker en clair
+        return get_option( 'wp_etik_hcaptcha_secret', '' );
+    }
+
+    // Helper pour récupérer le secret déchiffré
+    public static function get_hcaptcha_secret() : string {
+        if ( defined('WP_ETIK_HCAPTCHA_SECRET') && WP_ETIK_HCAPTCHA_SECRET ) {
+            return WP_ETIK_HCAPTCHA_SECRET;
+        }
+
+        $enc = get_option( 'wp_etik_hcaptcha_secret', '' );
+        if ( $enc && class_exists( '\\WP_Etik\\Encryption' ) ) {
+            try {
+                return \WP_Etik\Encryption::decrypt( $enc );
+            } catch ( \Exception $e ) {
+                return '';
+            }
+        }
+        return '';
+    }
+
+    // Helper pour la sitekey (pas chiffrée, clé publique)
+    public static function get_hcaptcha_sitekey() : string {
+        if ( defined('WP_ETIK_HCAPTCHA_SITEKEY') && WP_ETIK_HCAPTCHA_SITEKEY ) {
+            return WP_ETIK_HCAPTCHA_SITEKEY;
+        }
+        return (string) get_option( 'wp_etik_hcaptcha_sitekey', '' );
+    }
     
+    // Méthode dédiée à l'affichage de la section hCaptcha
+    private function render_hcaptcha_section() : void {
+        $sitekey    = esc_attr( get_option('wp_etik_hcaptcha_sitekey', '') );
+        $has_secret = ! empty( get_option('wp_etik_hcaptcha_secret', '') );
+
+        // Test de connexion hCaptcha si les deux clés sont présentes
+        $test_result = null;
+        if ( $sitekey && $has_secret ) {
+            $test_result = get_option('lwe_hcaptcha_test_result', null);
+        }
+        ?>
+        <div class="postbox">
+            <h3 class="hndle">
+                <span><?php esc_html_e( 'hCaptcha', 'wp-etik-events' ); ?></span>
+            </h3>
+            <div class="inside">
+                <p>
+                    <?php esc_html_e(
+                        'Protégez vos formulaires d\'inscription avec hCaptcha. Obtenez vos clés sur',
+                        'wp-etik-events'
+                    ); ?>
+                    <a href="https://www.hcaptcha.com" target="_blank" rel="noopener">hcaptcha.com</a>.
+                </p>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">
+                            <label for="wp_etik_hcaptcha_sitekey">
+                                <?php esc_html_e( 'Site Key (clé publique)', 'wp-etik-events' ); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input
+                                type="text"
+                                id="wp_etik_hcaptcha_sitekey"
+                                name="wp_etik_hcaptcha_sitekey"
+                                value="<?php echo $sitekey; ?>"
+                                class="regular-text"
+                            />
+                            <p class="description">
+                                <?php esc_html_e(
+                                    'Clé publique affichée dans le widget hCaptcha (ex. 10000000-ffff-ffff-ffff-000000000001).',
+                                    'wp-etik-events'
+                                ); ?>
+                            </p>
+                            <?php if ( $sitekey ) : ?>
+                                <div class="lwe-field-status lwe-status-valid">
+                                    <span class="dashicons dashicons-yes"></span>
+                                    <?php esc_html_e( 'Site key configurée', 'wp-etik-events' ); ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
+                            <label for="wp_etik_hcaptcha_secret">
+                                <?php esc_html_e( 'Secret Key (clé privée)', 'wp-etik-events' ); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input
+                                type="password"
+                                id="wp_etik_hcaptcha_secret"
+                                name="wp_etik_hcaptcha_secret"
+                                value=""
+                                class="regular-text"
+                                autocomplete="new-password"
+                            />
+                            <p class="description">
+                                <?php esc_html_e(
+                                    'Clé secrète pour vérifier les tokens côté serveur. Laisser vide pour conserver la valeur existante.',
+                                    'wp-etik-events'
+                                ); ?>
+                            </p>
+                            <?php if ( $has_secret ) : ?>
+                                <div class="lwe-field-status lwe-status-valid">
+                                    <span class="dashicons dashicons-yes"></span>
+                                    <?php esc_html_e( 'Secret key configurée et chiffrée', 'wp-etik-events' ); ?>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ( is_array($test_result) ) : ?>
+                                <div class="lwe-field-status <?php echo $test_result['success'] ? 'lwe-status-valid' : 'lwe-status-invalid'; ?>" style="margin-top:6px;">
+                                    <span class="dashicons <?php echo $test_result['success'] ? 'dashicons-yes' : 'dashicons-no-alt'; ?>"></span>
+                                    <?php echo esc_html( $test_result['message'] ); ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- ✅ Note sur la priorité des constantes wp-config.php -->
+                <p class="description" style="margin-top:12px;padding:8px;background:#f9f9f9;border-left:3px solid #2ea3f2;">
+                    <?php esc_html_e(
+                        'Priorité : si les constantes WP_ETIK_HCAPTCHA_SITEKEY et WP_ETIK_HCAPTCHA_SECRET sont définies dans wp-config.php, elles priment sur ces options.',
+                        'wp-etik-events'
+                    ); ?>
+                </p>
+            </div>
+        </div>
+        <?php
+    }
 
 }
 

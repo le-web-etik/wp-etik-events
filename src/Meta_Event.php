@@ -12,6 +12,9 @@ class Meta_Event {
         add_filter('manage_etik_event_posts_columns', [$this, 'add_custom_columns']);
         add_action('manage_etik_event_posts_custom_column', [$this, 'columns_content_etik_event'], 10, 2);
         add_filter( "manage_edit-etik_event_sortable_columns", [$this, 'lwe_sortable_columns'], 11 );
+
+        add_action( 'add_meta_boxes', [ $this, 'add_form_meta_box' ] );
+        add_action( 'save_post',      [ $this, 'save_form_meta' ] );
         
     }
 
@@ -21,7 +24,15 @@ class Meta_Event {
     }
 
     public function add_meta_boxes() {
-        add_meta_box('etik_event_meta', __('Détails événement','wp-etik-events'), [$this, 'meta_box_html'], 'etik_event', 'normal', 'high');
+        
+        add_meta_box(
+            'etik_event_meta',
+            __('Détails événement','wp-etik-events'),
+            [$this, 'meta_box_html'], 
+            'etik_event', 
+            'normal', 
+            'high'
+        );
     }
 
     public function meta_box_html($post) {
@@ -29,6 +40,7 @@ class Meta_Event {
         $start = get_post_meta($post->ID, 'etik_start_date', true);
         $end = get_post_meta($post->ID, 'etik_end_date', true);
         $price = get_post_meta($post->ID, 'etik_price', true);
+        $acompte = get_post_meta($post->ID, 'etik_acompte', true);
         $lieux  = get_post_meta($post->ID, 'etik_lieux', true);
         $discount = get_post_meta($post->ID, '_etik_discount', true);
         $payment_required = get_post_meta($post->ID, '_etik_payment_required', true);
@@ -49,6 +61,11 @@ class Meta_Event {
                 <div class="etik-meta-field">
                     <label><?php _e('Prix','wp-etik-events'); ?></label>
                     <input type="number" step="0.01" name="etik_price" value="<?php echo esc_attr($price); ?>" />
+                </div>
+
+                <div class="etik-meta-field">
+                    <label><?php _e('Acompte','wp-etik-events'); ?></label>
+                    <input type="number" step="0.01" name="etik_acompte" value="<?php echo esc_attr($acompte); ?>" />
                 </div>
 
                 <div class="etik-meta-field">
@@ -108,6 +125,10 @@ class Meta_Event {
         $price_val = isset($_POST['etik_price']) ? floatval($_POST['etik_price']) : 0;
         update_post_meta($post_id, 'etik_price', $price_val);
 
+        $acompte_val = isset($_POST['etik_acompte']) ? floatval($_POST['etik_acompte']) : 0;
+        update_post_meta($post_id, 'etik_acompte', $acompte_val);
+        
+
         $discount_val = isset($_POST['etik_discount']) ? floatval($_POST['etik_discount']) : 0;
         update_post_meta($post_id, '_etik_discount', $discount_val);
 
@@ -149,24 +170,42 @@ class Meta_Event {
         return $columns;
     }
 
+    /**
+     * 
+     */
     public function columns_content_etik_event($column_name, $post_ID){
 
-        $start = get_post_meta($post_ID, 'etik_start_date', true);
-        $end = get_post_meta($post_ID, 'etik_end_date', true);
-        $max_place = get_post_meta($post_ID, 'etik_max_place', true);
-
         if ($column_name == 'lwe_date_event_strat') {
+            $start = get_post_meta($post_ID, 'etik_start_date', true);
             echo $start ;
         }
         if ($column_name == 'lwe_date_event_end') {
+            $end = get_post_meta($post_ID, 'etik_end_date', true);
             echo $end;
         }
         if ($column_name == 'nb_resa') {
-            echo 0 . " / " . $max_place;
+            global $wpdb;
+            $table = $wpdb->prefix . 'etik_inscriptions';
+            $max_place = get_post_meta( $post_ID, 'etik_max_place', true );
+
+            // ✅ Compter les inscriptions confirmées depuis la BDD
+            $count = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE event_id = %d AND status = 'confirmed'",
+                $post_ID
+            ));
+
+            $display_max = $max_place ? esc_html( $max_place ) : '∞';
+
+            // ✅ Coloration si complet
+            $style = ( $max_place && $count >= (int)$max_place )
+                ? 'color:#a12d2d;font-weight:bold;'
+                : 'color:#0b7a4b;';
+
+            echo '<span style="' . $style . '">' . $count . ' / ' . $display_max . '</span>';
         }
     }
 
-    	/**
+    /**
 	 * Make the SEO Score column sortable.
 	 *
 	 * @param array $columns Array of column names.
@@ -180,6 +219,127 @@ class Meta_Event {
 		return $columns;
 	}
 
+    /**
+     * Meta box "Formulaire d'inscription" sur chaque événement.
+     * Permet de choisir quel formulaire utiliser et d'activer/désactiver
+     * les inscriptions pour cet événement.
+     */
+    public function add_form_meta_box() {
+        add_meta_box(
+            'etik_event_form',
+            __( 'Formulaire d inscription', 'wp-etik-events' ),
+            [$this, 'render_form_meta_box'],
+            'etik_event',
+            'side',
+            'high'
+        );
+    }
+ 
+    public function render_form_meta_box( \WP_Post $post ) {
+        wp_nonce_field( 'etik_event_form_meta_save', 'etik_event_form_nonce' );
+ 
+        $current_form_id = intval( get_post_meta( $post->ID, 'etik_event_form_id',     true ) );
+        $form_active     = get_post_meta( $post->ID, 'etik_event_form_active', true );
+        // Par défaut actif si la méta n'a jamais été enregistrée
+        if ( $form_active === '' ) $form_active = '1';
+ 
+        // Charger la liste des formulaires
+        global $wpdb;
+        $forms = $wpdb->get_results(
+            "SELECT id, title, is_default FROM {$wpdb->prefix}etik_forms ORDER BY is_default DESC, title ASC",
+            ARRAY_A
+        ) ?: [];
+        ?>
+        <div style="line-height:1.8;">
+ 
+            <!-- Inscriptions actives ? ─────────────────────────────────── -->
+            <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:10px;cursor:pointer;">
+                <input type="checkbox"
+                       name="etik_event_form_active"
+                       value="1"
+                       id="etik_form_active_toggle"
+                       <?php checked( $form_active, '1' ); ?>>
+                <?php esc_html_e( 'Inscriptions actives', 'wp-etik-events' ); ?>
+            </label>
+ 
+            <!-- Choix du formulaire ─────────────────────────────────────── -->
+            <div id="etik-form-select-wrap"
+                 style="<?php echo $form_active !== '1' ? 'opacity:.45;pointer-events:none;' : ''; ?>">
+ 
+                <label for="etik_event_form_id"
+                       style="display:block;font-size:12px;color:#555;margin-bottom:4px;">
+                    <?php esc_html_e( 'Formulaire à utiliser :', 'wp-etik-events' ); ?>
+                </label>
+ 
+                <?php if ( empty( $forms ) ) : ?>
+                    <p style="font-size:12px;color:#888;font-style:italic;">
+                        <?php esc_html_e( 'Aucun formulaire créé.', 'wp-etik-events' ); ?>
+                        <a href="<?php echo esc_url( admin_url('edit.php?post_type=etik_event&page=wp-etik-forms&action=new') ); ?>">
+                            <?php esc_html_e( 'Créer un formulaire', 'wp-etik-events' ); ?>
+                        </a>
+                    </p>
+                <?php else : ?>
+                    <select name="etik_event_form_id"
+                            id="etik_event_form_id"
+                            style="width:100%;font-size:13px;">
+                        <option value="0">
+                            — <?php esc_html_e( 'Formulaire par défaut', 'wp-etik-events' ); ?> —
+                        </option>
+                        <?php foreach ( $forms as $form ) : ?>
+                            <option value="<?php echo esc_attr( $form['id'] ); ?>"
+                                    <?php selected( $current_form_id, (int) $form['id'] ); ?>>
+                                <?php echo esc_html( $form['title'] ); ?>
+                                <?php if ( $form['is_default'] ) : ?>
+                                    (<?php esc_html_e( 'par défaut', 'wp-etik-events' ); ?>)
+                                <?php endif; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+ 
+                    <?php if ( $current_form_id > 0 ) : ?>
+                        <a href="<?php echo esc_url( add_query_arg(
+                            [ 'page' => 'wp-etik-forms', 'action' => 'edit', 'form_id' => $current_form_id ],
+                            admin_url('edit.php?post_type=etik_event')
+                        ) ); ?>"
+                           style="display:block;font-size:11px;margin-top:4px;">
+                            ✏️ <?php esc_html_e( 'Modifier ce formulaire', 'wp-etik-events' ); ?>
+                        </a>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+ 
+        </div>
+ 
+        <script>
+        (function($){
+            $('#etik_form_active_toggle').on('change', function(){
+                var $wrap = $('#etik-form-select-wrap');
+                if (this.checked) {
+                    $wrap.css({ opacity: '', 'pointer-events': '' });
+                } else {
+                    $wrap.css({ opacity: '.45', 'pointer-events': 'none' });
+                }
+            });
+        })(jQuery);
+        </script>
+        <?php
+    }
+ 
+    public function save_form_meta( int $post_id ) {
+        if ( defined('DOING_AUTOSAVE') && DOING_AUTOSAVE )            return;
+        if ( get_post_type( $post_id ) !== 'etik_event' )             return;
+        if ( ! isset( $_POST['etik_event_form_nonce'] ) )             return;
+        if ( ! wp_verify_nonce( $_POST['etik_event_form_nonce'], 'etik_event_form_meta_save' ) ) return;
+        if ( ! current_user_can( 'edit_post', $post_id ) )            return;
+ 
+        // Formulaire choisi
+        $form_id = intval( $_POST['etik_event_form_id'] ?? 0 );
+        update_post_meta( $post_id, 'etik_event_form_id', $form_id );
+ 
+        // Actif ?
+        $active = isset( $_POST['etik_event_form_active'] ) ? '1' : '0';
+        update_post_meta( $post_id, 'etik_event_form_active', $active );
+    }
 
     
 }

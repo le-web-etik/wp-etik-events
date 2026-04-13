@@ -1,100 +1,402 @@
 /**********************************************************************************/
-/*  MODAL ISCRIPTION  */
+/*  MODAL INSCRIPTION - VERSION MODERNE & SEREINE                                */
+/*  Thème : Douceur, Clarté, Professionnalisme (Sauge & Ardoise)                 */
 /**********************************************************************************/
 
-/* Modal base */
-.etik-modal { display:none; position:fixed; inset:0; z-index:9999; align-items:center; justify-content:center; }
-.etik-modal[aria-hidden="false"] { display:flex; }
-.etik-modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,0.75); }
-.etik-modal-dialog { position:relative; z-index:2; width:100%; max-width:540px; margin:16px; }
-.etik-modal-content { background:#fff; border-radius:10px; padding:18px; box-shadow:0 20px 48px rgba(8,12,20,0.18); }
+:root {
+  --etik-primary: #4a7c6e;       /* Vert Sauge foncé - Action principale */
+  --etik-primary-hover: #3d665a; /* Vert plus foncé au survol */
+  --etik-accent: #d4a373;        /* Terre cuite doux - Accents */
+  --etik-bg: #f9fbfb;            /* Fond très léger */
+  --etik-surface: #ffffff;       /* Fond des cartes */
+  --etik-text: #2c3e50;          /* Texte principal (Gris ardoise) */
+  --etik-text-light: #64748b;    /* Texte secondaire */
+  --etik-border: #e2e8f0;        /* Bordures douces */
+  --etik-danger: #e74c3c;        /* Erreurs / Obligatoire */
+  --etik-info-bg: #f0f7f4;       /* Fond blocs info */
+  --etik-radius: 12px;           /* Arrondi moderne */
+  --etik-shadow: 0 10px 40px -10px rgba(0,0,0,0.15); /* Ombre portée douce */
+}
 
-.etik-modal h3.etik-title{ font-weight: 400; line-height: 1; }
+/* ── MODAL STRUCTURE ────────────────────────────────────────────────────────── */
 
-/* Close */
-.etik-modal-close { position:absolute; right:10px; top:10px; background:transparent; border:0; font-size:22px; cursor:pointer; }
+.etik-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999; /* Très élevé pour passer au dessus de tout (Divi, etc.) */
+  align-items: center;
+  justify-content: center;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
 
-/* Tabs */
-.etik-tabs { display:flex; gap:8px; }
-.etik-tab { background:transparent; border:1px solid transparent; padding:8px 12px; cursor:pointer; border-radius:6px; font-weight:600; letter-spacing: 1px; transition: all 0.4s;; }
-.etik-tab.active { background:#2ea3f2; color: #e3e3e3; border-color:#e6e9ec; }
-
-/* Panels */
-.etik-panels { min-height:120px; padding-top: 1rem; }
-.etik-panel { display:none; }
-.etik-panel.active { display:block; }
-
-/* Forms */
-.etik-modal-content{
+.etik-modal[aria-hidden="false"] {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
+  animation: etikFadeIn 0.3s ease-out forwards;
 }
 
-.etik-insc-form label, .etik-login-form label { 
-  padding: 0.5rem;
-  box-sizing: border-box;
-  grid-template-rows: 100px 100px;
-  flex: 1 200px;
+.etik-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 30, 40, 0.6);
+  backdrop-filter: blur(4px); /* Effet de flou moderne sur l'arrière-plan */
 }
-.etik-insc-form input, .etik-login-form input { width:100%; padding:4px 10px !important; margin-top:6px; border-radius:6px; border:1px solid #ddd; box-sizing:border-box; }
-.etik-insc-form input[type="checkbox"], .etik-login-form input[type="checkbox"] {
-  width: auto;
-}
-.etik-insc-form input[type="email"], .etik-login-form input[type="email"] {
-  margin: 0px;
-}
-.etik-modal-content i{
-  color: #a12d2d;
-}
-.etik-form-actions { margin-top:12px; display:flex; justify-content:flex-end; }
-.etik-btn { background:#0b7a4b; color:#fff; padding:8px 14px; border-radius:8px; border:0; cursor:pointer; }
 
-/* Feedback */
-.etik-feedback { margin-top:12px; padding:10px; border-radius:6px; font-weight:600; }
-.etik-feedback.success { background:#e6f6ed; color:#0b7a4b; display:block; }
-.etik-feedback.error { background:#fdecea; color:#a12d2d; display:block; }
+.etik-modal-dialog {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 800px; /* Un peu plus large pour la lisibilité */
+  margin: 20px;
+  background: var(--etik-surface);
+  border-radius: var(--etik-radius);
+  box-shadow: var(--etik-shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh; /* Limite la hauteur */
+}
 
-.etik-formation-btn {
-  color: #0C71C3 !important;
-  border-width: 2px !important;
-  font-size: 16px;
-  padding: 2px 1em;
-  background-color: transparent;
-  border: 2px solid;
-  border-radius: 4px;
-  display: inline-block;
-  line-height: 1.7em;
+.etik-modal-content {
+  padding: 0;
+  overflow: hidden; /* Le scroll sera géré par le form-container si besoin */
+  display: flex;
+  flex-direction: column;
+}
+
+/* En-tête du modal */
+.etik-modal-content h3#etik-modal-title {
+  margin: 0;
+  padding: 24px 32px 10px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--etik-text);
+  border-bottom: 1px solid var(--etik-border);
+  background: var(--etik-surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Zone de scroll pour le formulaire */
+.etik-panels {
+  overflow-y: auto;
+  padding: 32px;
+  flex: 1;
+  scroll-behavior: smooth;
+}
+
+/* ── BOUTON FERMETURE ───────────────────────────────────────────────────────── */
+
+.etik-modal-close {
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  width: 32px;
+  height: 32px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--etik-text-light);
   cursor: pointer;
-
-  transition: all 0.4s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 20;
 }
 
-.etik-formation-btn:hover{
-  border: 2px solid transparent;
-  background-color: rgba(0,0,0,.05);
+.etik-modal-close:hover {
+  background: var(--etik-danger);
+  color: #fff;
+  transform: rotate(90deg);
 }
 
+/* ── FORMULAIRE & CHAMPS ────────────────────────────────────────────────────── */
 
-/* Small screens */
-@media (max-width:600px) {
-  .etik-modal-dialog { max-width: 92%; }
-  
+.etik-insc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px; /* Espacement entre les champs */
 }
-@media only screen and (max-width: 767px) {
-  .etik-modal-content .et_pb_text_2 {
-    padding: 0 2rem !important;
-  }
-  .etik-insc-form label, .etik-login-form label{
-    padding-bottom: 0px;
-  }
-  input.text, input.title, input[type="email"], input[type="password"], input[type="tel"], input[type="text"], select, textarea{
-    padding: 5px 1rem;
-  }
+
+/* Conteneur de champ générique */
+.etik-field {
+  margin-bottom: 4px;
+}
+
+/* Labels */
+.etik-insc-form label,
+.etik-radio-group legend,
+.etik-checkbox-group legend {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--etik-text);
+  margin-bottom: 8px;
+}
+
+.etik-insc-form i {
+  color: var(--etik-danger);
+  font-style: normal;
+  margin-left: 4px;
+  font-weight: bold;
+}
+
+/* Inputs, Textarea, Select */
+.etik-insc-form input[type="text"],
+.etik-insc-form input[type="email"],
+.etik-insc-form input[type="tel"],
+.etik-insc-form input[type="number"],
+.etik-insc-form input[type="date"],
+.etik-insc-form textarea,
+.etik-insc-form select {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 1rem;
+  color: var(--etik-text);
+  background: #fff;
+  border: 1px solid var(--etik-border);
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box; /* Important pour le padding */
+  font-family: inherit;
+}
+
+.etik-insc-form input:focus,
+.etik-insc-form textarea:focus,
+.etik-insc-form select:focus {
+  outline: none;
+  border-color: var(--etik-primary);
+  box-shadow: 0 0 0 3px rgba(74, 124, 110, 0.15);
+}
+
+.etik-insc-form input::placeholder,
+.etik-insc-form textarea::placeholder {
+  color: #cbd5e1;
+}
+
+/* Aide sous les champs */
+.etik-field-help {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--etik-text-light);
+  margin-top: 6px;
+  font-style: italic;
+}
+
+/* ── RADIO & CHECKBOX (Styles personnalisés) ───────────────────────────────── */
+
+.etik-radio-group,
+.etik-checkbox-group {
+  border: 1px solid var(--etik-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fafafa;
+  margin: 0;
+}
+
+.etik-radio-group legend,
+.etik-checkbox-group legend {
+  padding: 0 4px;
+  font-weight: 600;
+  color: var(--etik-primary);
+}
+
+.etik-radio-label,
+.etik-checkbox-label,
+.etik-check-single {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-weight: 400;
+  color: var(--etik-text);
+  transition: background 0.2s;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.etik-radio-label:last-child,
+.etik-checkbox-label:last-child {
+  margin-bottom: 0;
+}
+
+.etik-radio-label:hover,
+.etik-checkbox-label:hover {
+  background: #f1f5f9;
+}
+
+.etik-radio-label input,
+.etik-checkbox-label input,
+.etik-check-single input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--etik-primary); /* Couleur native moderne */
+}
+
+/* ── BLOCS D'INFORMATION (HTML) ─────────────────────────────────────────────── */
+
+.etik-html-block {
+  background: var(--etik-info-bg);
+  border-left: 4px solid var(--etik-primary);
+  padding: 20px;
+  border-radius: 0 8px 8px 0;
+  color: var(--etik-text);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 10px 0;
+}
+
+.etik-html-block-title {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: var(--etik-primary);
+  font-size: 1.05rem;
+}
+
+.etik-html-block p {
+  margin-bottom: 12px;
+}
+.etik-html-block p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── CONSENTEMENT RGPD ──────────────────────────────────────────────────────── */
+
+.etik-field-consent {
+  background: #fff;
+  border: 1px solid var(--etik-border);
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.etik-consent-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--etik-text-light);
+  line-height: 1.5;
+}
+
+.etik-consent-label input {
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--etik-primary);
+}
+
+/* ── BOUTON SOUMISSION ──────────────────────────────────────────────────────── */
+
+.etik-modal-actions {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--etik-border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.etik-submit-btn {
+  background: var(--etik-primary);
+  color: #fff;
+  border: none;
+  padding: 14px 32px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(74, 124, 110, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.etik-submit-btn:hover {
+  background: var(--etik-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(74, 124, 110, 0.3);
+}
+
+.etik-submit-btn:active {
+  transform: translateY(0);
+}
+
+.etik-submit-btn:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ── FEEDBACK (Succès / Erreur) ─────────────────────────────────────────────── */
+
+.etik-feedback {
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 20px;
+  font-weight: 500;
+  text-align: center;
+  animation: etikSlideDown 0.3s ease;
+}
+
+.etik-feedback.success {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.etik-feedback.error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+/* ── ANIMATIONS ─────────────────────────────────────────────────────────────── */
+
+@keyframes etikFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes etikSlideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── RESPONSIVE ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
   .etik-modal-dialog {
-    max-height: 96vh;
-    overflow: auto;
+    margin: 10px;
+    max-width: 100%;
+    max-height: 95vh;
   }
-  
+
+  .etik-modal-content h3#etik-modal-title {
+    padding: 20px;
+    font-size: 1.25rem;
+    padding-right: 50px; /* Espace pour la croix */
+  }
+
+  .etik-panels {
+    padding: 20px;
+  }
+
+  .etik-radio-group,
+  .etik-checkbox-group {
+    padding: 12px;
+  }
+
+  .etik-submit-btn {
+    width: 100%; /* Bouton pleine largeur sur mobile */
+  }
 }
