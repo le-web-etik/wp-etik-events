@@ -144,3 +144,8 @@
 {
     content: "↳ ";
 }
+
+.et-db #et-boc .et-l .et-fb-modules-list ul > li.etk_events,
+.et-db #et-boc .et-l .et-fb-modules-list ul > li.etk_prestation_booking {
+    background-color: #d7f2fa;
+}

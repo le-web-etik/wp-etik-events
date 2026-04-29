@@ -96,12 +96,12 @@ function handle_stripe_webhook( \WP_REST_Request $request ) : \WP_REST_Response 
 
 
         /*// Dans handle_stripe_webhook()
-        $type = $event['data']['object']['metadata']['type'] ?? '';
+            $type = $event['data']['object']['metadata']['type'] ?? '';
 
-        if ( $type === 'inscription' ) {
-            // Logique événement : Mail de confirmation event, mise à jour table inscriptions
-            handle_event_confirmation( $inscription_id );
-        } elseif ( $type === 'reservation' ) {
+            if ( $type === 'inscription' ) {
+                // Logique événement : Mail de confirmation event, mise à jour table inscriptions
+                handle_event_confirmation( $inscription_id );
+            } elseif ( $type === 'reservation' ) {
             // Logique prestation : Mail de rappel RDV, mise à jour table reservations
             handle_prestation_confirmation( $reservation_id );
         }*/
@@ -109,11 +109,40 @@ function handle_stripe_webhook( \WP_REST_Request $request ) : \WP_REST_Response 
         $session = $event['data']['object'] ?? null;
 
         if ( $session ) {
-            $ins_id        = intval( $session['metadata']['inscription_id'] ?? 0 );
+            
+            $meta_type      = sanitize_text_field( $session['metadata']['type'] ?? 'inscription' );
             $session_id    = sanitize_text_field( $session['id'] ?? '' );
             $email         = sanitize_email( $session['customer_details']['email'] ?? '' );
             $customer_name = sanitize_text_field( $session['customer_details']['name'] ?? '' );
 
+            // ── Prestation : réservation ──────────────────────────────────────
+            if ( $meta_type === 'reservation' ) {
+                $reservation_id = intval( $session['metadata']['reservation_id'] ?? 0 );
+                $t_res          = $wpdb->prefix . 'etik_reservations';
+
+                if ( $reservation_id > 0 ) {
+                    $wpdb->update(
+                        $t_res,
+                        [ 'status' => 'confirmed', 'payment_session_id' => $session_id ],
+                        [ 'id'     => $reservation_id ],
+                        [ '%s', '%s' ], [ '%d' ]
+                    );
+
+                    // Emails via Prestation_Booking (données déchiffrées depuis etik_users)
+                    if ( ! class_exists( 'WP_Etik\\Prestation_Booking' ) ) {
+                        $pb_file = WP_ETIK_PLUGIN_DIR . 'src/Prestation_Booking.php';
+                        if ( file_exists( $pb_file ) ) require_once $pb_file;
+                    }
+                    if ( class_exists( 'WP_Etik\\Prestation_Booking' ) ) {
+                        \WP_Etik\Prestation_Booking::send_client_email( $reservation_id );
+                        \WP_Etik\Prestation_Booking::send_admin_email( $reservation_id );
+                    }
+                }
+
+            }
+ 
+            // ── Événement : inscription (comportement existant inchangé) ───────
+            $ins_id        = intval( $session['metadata']['inscription_id'] ?? 0 );
             if ( $ins_id ) {
                 $wpdb->update(
                     $table,
@@ -163,6 +192,7 @@ function handle_stripe_webhook( \WP_REST_Request $request ) : \WP_REST_Response 
                 }
             }
         }
+        
 
     // ── Session expirée ou paiement asynchrone échoué ───────────────────────
     } elseif ( in_array($type, ['checkout.session.expired', 'checkout.session.async_payment_failed'], true) ) {

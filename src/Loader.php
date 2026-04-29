@@ -33,6 +33,7 @@ class Loader {
         require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Prestation_Meta.php';
         require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Prestation_Closures.php';
         require_once WP_ETIK_PLUGIN_DIR . 'includes/admin/Prestation_Reservation_List.php';
+        require_once WP_ETIK_PLUGIN_DIR . 'src/Prestation_Booking.php';
     }
 
 
@@ -56,6 +57,9 @@ class Loader {
         require_once WP_ETIK_PLUGIN_DIR . 'src/Etik_User_Manager.php';
         require_once WP_ETIK_PLUGIN_DIR . 'src/Etik_Rgpd.php';
         ( new \WP_Etik\Etik_Rgpd() )->init();
+
+        $prestation_booking = new \WP_Etik\Prestation_Booking();
+        $prestation_booking->init();
 
         require_once WP_ETIK_PLUGIN_DIR . 'src/Etik_Modal_Manager.php';
         if ( class_exists( '\\WP_Etik\\Etik_Modal_Manager' ) ) {
@@ -128,8 +132,22 @@ class Loader {
             } else {
                 Utils::log('Divi_Module file missing: ' . $file);
             }
+
+            $file_pb = __DIR__ . '/Divi_Prestation_Module.php';
+            if ( file_exists( $file_pb ) ) {
+                require_once $file_pb;
+                if ( class_exists( 'WP_Etik\\Divi_Prestation_Module' ) ) {
+                    new \WP_Etik\Divi_Prestation_Module();
+                    Utils::log( 'Divi_Prestation_Module instantiated immediately' );
+                }
+            } else {
+                Utils::log('Divi_Prestation_Module file missing: ' . $file);
+            }
+  
             return;
         }
+
+        
 
         // Sinon, attendre le hook fourni par Divi (une seule fois)
         add_action('et_builder_ready', function() use ($file){
@@ -145,6 +163,16 @@ class Loader {
             } else {
                 Utils::log('Divi_Module file missing at et_builder_ready: ' . $file);
             }
+
+            $file_pb = __DIR__ . '/Divi_Prestation_Module.php';
+            if ( file_exists( $file_pb ) ) {
+                require_once $file_pb;
+                if ( class_exists( 'WP_Etik\\Divi_Prestation_Module' ) && class_exists( 'ET_Builder_Module' ) ) {
+                    new \WP_Etik\Divi_Prestation_Module();
+                    Utils::log( 'Divi_Prestation_Module instantiated on et_builder_ready' );
+                }
+            }
+  
         }, 20);
     }
 
@@ -279,6 +307,18 @@ class Loader {
             ['jquery'],
             WP_ETIK_VERSION,
             true
+        );
+
+        // ── Script divi module ──────────────────────────────
+        wp_register_style(
+            'etik-prestation-booking',
+            WP_ETIK_PLUGIN_URL . 'assets/css/prestation-booking.css',
+            [], WP_ETIK_VERSION
+        );
+        wp_register_script(
+            'etik-prestation-booking',
+            WP_ETIK_PLUGIN_URL . 'assets/js/prestation-booking.js',
+            [ 'jquery' ], WP_ETIK_VERSION, true
         );
 
         // ── Script inscription (modal) ─────────────────────────────────────────

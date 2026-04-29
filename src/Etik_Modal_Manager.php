@@ -219,8 +219,8 @@ class Etik_Modal_Manager {
      * Rendu d'un seul champ selon son type.
      */
     private static function render_single_field( array $field ) : string {
+
         $type     = $field['type']        ?? 'text';
-        $key      = $field['field_key']   ?? 'field';
         $label    = $field['label']       ?? '';
         $ph       = $field['placeholder'] ?? '';
         $required = ! empty( $field['required'] );
@@ -228,6 +228,18 @@ class Etik_Modal_Manager {
                     ? $field['help_text'] : '';
         $options  = $field['options_decoded'] ?? [];
         $cond     = $field['conditional']    ?? null; // logique conditionnelle décodée
+
+        $raw_key  = $field['field_key'] ?? '';
+        // Si la field_key est vide, nulle ou "0", on génère un nom unique basé sur l'ID BDD
+        if ( empty( $raw_key ) || $raw_key === '0' ) {
+            if ( ! empty( $field['id'] ) ) {
+                $raw_key = 'field_' . intval( $field['id'] );
+            } else {
+                // Fallback ultime si pas d'ID (cas très rare)
+                $raw_key = 'field_' . uniqid();
+            }
+        }
+        $key      = $raw_key;
 
         // Attributs pour la logique conditionnelle (gérée par JS)
         $cond_attrs = '';

@@ -71,6 +71,8 @@ class Prestation_Meta {
      * @param \WP_Post|null $post  null = mode création
      */
     public function meta_box_html( $post = null ) : void {
+        global $wpdb;
+
         $color    = $post ? get_post_meta( $post->ID, 'etik_prestation_color',            true ) : '#2aa78a';
         $price    = $post ? get_post_meta( $post->ID, 'etik_prestation_price',            true ) : '';
         $duration = $post ? get_post_meta( $post->ID, 'etik_prestation_duration',         true ) : '60';
@@ -82,6 +84,13 @@ class Prestation_Meta {
         if ( $post ) {
             wp_nonce_field( 'etik_prestation_save_meta', 'etik_prestation_meta_nonce' );
         }
+
+        
+        $forms_list  = $wpdb->get_results(
+            "SELECT id, title FROM {$wpdb->prefix}etik_forms
+            WHERE attach_type IN ('prestation','all') ORDER BY title ASC"
+        ) ?: [];
+        $sel_form_id = $post ? (int) get_post_meta( $post->ID, 'etik_prestation_form_id', true ) : 0;
         ?>
         <style>
         .etik-meta-grid { display:flex; gap:24px; flex-wrap:wrap; }
@@ -121,6 +130,30 @@ class Prestation_Meta {
                            class="color-picker">
                     <p class="description" style="margin-top:4px;">
                         <?php esc_html_e( 'Utilisée dans le planning et la liste.', 'wp-etik-events' ); ?>
+                    </p>
+                </div>
+
+                
+                <div class="etik-meta-field">
+                    <label for="etik_p_form_id">
+                        <?php esc_html_e( 'Formulaire de réservation', 'wp-etik-events' ); ?>
+                    </label>
+                    <select id="etik_p_form_id" name="etik_prestation_form_id" style="width:100%;">
+                        <option value="0">
+                            <?php esc_html_e( '— Formulaire par défaut —', 'wp-etik-events' ); ?>
+                        </option>
+                        <?php foreach ( $forms_list as $fm ) : ?>
+                            <option value="<?php echo esc_attr( $fm->id ); ?>"
+                                <?php selected( $sel_form_id, (int) $fm->id ); ?>>
+                                <?php echo esc_html( $fm->title ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description" style="margin-top:4px;">
+                        <?php esc_html_e(
+                            'Formulaire affiché lors de la réservation front. "Défaut" = formulaire general (attach_type=all).',
+                            'wp-etik-events'
+                        ); ?>
                     </p>
                 </div>
             </div>
@@ -206,6 +239,9 @@ class Prestation_Meta {
 
         $payment = isset( $_POST['etik_prestation_payment_required'] ) ? '1' : '0';
         update_post_meta( $post_id, 'etik_prestation_payment_required', $payment );
+
+        $form_id_save = max( 0, intval( $_POST['etik_prestation_form_id'] ?? 0 ) );
+        update_post_meta( $post_id, 'etik_prestation_form_id', $form_id_save );
     }
 
     // ─── HANDLER CRÉATION ───────────────────────────────────────────────────

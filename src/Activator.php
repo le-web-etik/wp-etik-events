@@ -1,87 +1,66 @@
 <?php
 namespace WP_Etik;
 
-defined('ABSPATH') || exit;
+defined( 'ABSPATH' ) || exit;
 
-/**
- * Classe d'activation du plugin.
- * Gère la création des tables de base de données, des rôles (si nécessaire)
- * et des données par défaut.
- */
 class Activator {
 
-    /**
-     * Méthode exécutée lors de l'activation du plugin.
-     */
-    public static function activate() {
-        // 1. Enregistrer le CPT temporairement pour éviter les erreurs de rewrite
+    public static function activate() : void {
+        // ── CAPTURE de toute sortie inattendue ────────────────────────────────
+        // dbDelta() produit du HTML lors de la création/modification de tables
+        // (ex: "Installed table etik_users"). Ce buffer l'intercepte silencieusement
+        // pour éviter l'erreur WordPress "3780 caractères de sortie inattendus".
+        ob_start();
+
+        try {
+            self::_do_activate();
+        } finally {
+            ob_end_clean(); // Toujours exécuté, même si exception
+        }
+    }
+
+    private static function _do_activate() : void {
         $cpt = new CPT_Event();
         $cpt->register();
 
-        // =========================================================================
-        // GÉNÉRATION DE LA CLÉ DE HACHAGE (ETIK_HASH_KEY)
-        // =========================================================================
-        // On vérifie si la clé existe déjà dans les options.
-        // Si NON, on en génère une nouvelle aléatoire et on la sauvegarde DÉFINITIVEMENT.
+        // Clé de hachage stable pour HMAC email (générée une seule fois, jamais changée)
         if ( ! get_option( 'etik_hash_key' ) ) {
-            // Génère une chaîne aléatoire de 64 caractères
-            $random_key = bin2hex( random_bytes( 32 ) );
-            update_option( 'etik_hash_key', $random_key );
-            
-            error_log( '[WP-Etik] ETIK_HASH_KEY générée et sauvegardée avec succès.' );
+            update_option( 'etik_hash_key', bin2hex( random_bytes( 32 ) ), false );
         }
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        // 2. Création des tables principales
-        self::create_etik_users_table();      // NOUVEAU : Table contacts chiffrés
-        self::create_inscription_table();     // Mise à jour avec etik_user_id
-        self::create_prestation_tables();     // Slots, Réservations, Fermetures
-        self::create_form_tables();           // Formulaires dynamiques
-        self::create_form_responses_table();  // Réponses au Formulaires
+        self::create_etik_users_table();
+        self::create_inscription_table();
+        self::create_prestation_tables();
+        self::create_form_tables();
+        self::create_form_responses_table();
 
-        // 3. Exécution des migrations (ajout de colonnes si mises à jour)
-        /*if (file_exists(WP_ETIK_PLUGIN_DIR . 'includes/migrations/add-custom-data-column.php')) {
-            require_once WP_ETIK_PLUGIN_DIR . 'includes/migrations/add-custom-data-column.php';
-            \WP_Etik\Migrations\add_custom_data_column();
-        }*/
-
-        // NOUVELLE MIGRATION CRITIQUE (Peuplement + Liaison + Nettoyage)
-        if (file_exists(WP_ETIK_PLUGIN_DIR . 'includes/migrations/migrate-to-encrypted-users.php')) {
-            require_once WP_ETIK_PLUGIN_DIR . 'includes/migrations/migrate-to-encrypted-users.php';
+        // Migration : lecture PII → etik_users chiffré → nettoyage colonnes sources
+        $migration = WP_ETIK_PLUGIN_DIR . 'includes/migrations/migrate-to-encrypted-users.php';
+        if ( file_exists( $migration ) ) {
+            require_once $migration;
             \WP_Etik\Migrations\migrate_to_encrypted_users();
         }
 
-        // 4. Nettoyage des règles de réécriture
-        if (get_option('etik_plugin_activated') !== 'yes') {
+        if ( get_option( 'etik_plugin_activated' ) !== 'yes' ) {
             flush_rewrite_rules();
-            update_option('etik_plugin_activated', 'yes');
+            update_option( 'etik_plugin_activated', 'yes' );
         }
     }
 
-    /**
-     * Méthode exécutée lors de la désactivation du plugin.
-     */
-    public static function deactivate() {
+    public static function deactivate() : void {
         flush_rewrite_rules();
-        // Note : Nous ne supprimons PAS les tables ici pour préserver les données.
     }
 
-    // =========================================================================
-    // CRÉATION DES TABLES
-    // =========================================================================
+    // ─── etik_users ───────────────────────────────────────────────────────────
 
-    /**
-     * Crée la table wp_etik_users.
-     * Source unique de vérité pour les contacts clients.
-     * Toutes les données personnelles (PII) sont chiffrées.
-     */
-    private static function create_etik_users_table() {
+    private static function create_etik_users_table() : void {
         global $wpdb;
-        $charset_collate = $wpdb->get_charset_collate();
-        $table_name = $wpdb->prefix . 'etik_users';
-
-        $sql = "CREATE TABLE {$table_name} (
+        $c = $wpdb->get_charset_collate();
+        // Règle critique : AUCUN commentaire SQL (--) dans les strings CREATE TABLE.
+        // dbDelta() ne les supporte pas et produit du texte inattendu.
+        dbDelta( "CREATE TABLE {$wpdb->prefix}etik_users (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             email_hash VARCHAR(64) NOT NULL,
             email_enc TEXT NOT NULL,
@@ -94,42 +73,18 @@ class Activator {
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY email_hash (email_hash)
-        ) {$charset_collate};";
-
-        dbDelta($sql);
+        ) {$c};" );
     }
 
-    /**
-     * Crée la table wp_etik_inscriptions.
-     * STRUCTURE SIMPLIFIÉE : 
-     * - Plus de colonnes PII en clair (email, nom, tel...).
-     * - Tout passe par etik_user_id (lien vers wp_etik_users).
-     * - custom_data conservé pour les données spécifiques à l'événement (chiffrées par le handler).
-     */
-    private static function create_inscription_table() {
-        global $wpdb;
-        $charset_collate = $wpdb->get_charset_collate();
-        $table_name = $wpdb->prefix . 'etik_inscriptions';
+    // ─── etik_inscriptions ────────────────────────────────────────────────────
 
-        $sql = "CREATE TABLE {$table_name} (
+    private static function create_inscription_table() : void {
+        global $wpdb;
+        $c = $wpdb->get_charset_collate();
+        dbDelta( "CREATE TABLE {$wpdb->prefix}etik_inscriptions (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             event_id BIGINT UNSIGNED NOT NULL,
             etik_user_id BIGINT UNSIGNED NULL,
-            
-            -- Colonnes héritées (gardées pour rétrocompatibilité temporaire mais vidées par migration)
-            user_id BIGINT UNSIGNED NULL DEFAULT 0,
-            email TEXT NULL,                -- Sera vidé
-            email_hash VARCHAR(64) NULL,    -- Sera vidé
-            first_name TEXT NULL,           -- Sera vidé
-            last_name TEXT NULL,            -- Sera vidé
-            phone TEXT NULL,                -- Sera vidé
-            
-            -- Données spécifiques à l'inscription (peuvent rester en clair ou chiffrées selon besoin)
-            desired_domain VARCHAR(191) NULL,
-            has_domain TINYINT(1) NOT NULL DEFAULT 0,
-            custom_data LONGTEXT NULL,      -- JSON chiffré si nécessaire
-            
-            -- Gestion de l'état et paiement
             status VARCHAR(30) NOT NULL DEFAULT 'pending',
             token VARCHAR(191) NULL,
             token_expires DATETIME NULL,
@@ -137,27 +92,20 @@ class Activator {
             payment_session_id VARCHAR(255) NULL,
             amount INT NULL,
             reserved_at DATETIME NULL,
-            
             PRIMARY KEY (id),
             KEY event_idx (event_id),
             KEY etik_user_id (etik_user_id),
-            KEY status_idx (status),
-            KEY registered_at_idx (registered_at)
-        ) {$charset_collate};";
-
-        dbDelta($sql);
+            KEY status_idx (status)
+        ) {$c};" );
     }
 
-    /**
-     * Crée les tables liées aux prestations (Créneaux, Réservations, Fermetures).
-     */
-    private static function create_prestation_tables() {
-        global $wpdb;
-        $charset_collate = $wpdb->get_charset_collate();
+    // ─── Tables prestations ───────────────────────────────────────────────────
 
-        // 1. Table des créneaux (slots)
-        $table_slots = $wpdb->prefix . 'etik_prestation_slots';
-        $sql_slots = "CREATE TABLE {$table_slots} (
+    private static function create_prestation_tables() : void {
+        global $wpdb;
+        $c = $wpdb->get_charset_collate();
+
+        dbDelta( "CREATE TABLE {$wpdb->prefix}etik_prestation_slots (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             prestation_id BIGINT UNSIGNED NOT NULL,
             type VARCHAR(20) NOT NULL DEFAULT 'recurrent',
@@ -170,27 +118,16 @@ class Activator {
             is_closed TINYINT(1) NOT NULL DEFAULT 0,
             PRIMARY KEY (id),
             KEY prestation_id (prestation_id),
-            KEY type (type),
-            KEY start_time (start_time),
-            KEY start_date (start_date),
-            KEY end_date (end_date)
-        ) {$charset_collate};";
-        dbDelta($sql_slots);
+            KEY start_time (start_time)
+        ) {$c};" );
 
-        // 2. Table des réservations
-        $table_res = $wpdb->prefix . 'etik_reservations';
-        $sql_res = "CREATE TABLE {$table_res} (
+        dbDelta( "CREATE TABLE {$wpdb->prefix}etik_reservations (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             prestation_id BIGINT UNSIGNED NOT NULL,
-            slot_id BIGINT UNSIGNED NOT NULL,
-            etik_user_id BIGINT UNSIGNED NULL,
-            user_id BIGINT UNSIGNED NULL DEFAULT 0,
+            slot_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
             booking_date DATE NOT NULL,
             booking_time VARCHAR(10) NOT NULL DEFAULT '',
-            first_name VARCHAR(100) NOT NULL DEFAULT '',
-            last_name VARCHAR(100) NOT NULL DEFAULT '',
-            email VARCHAR(200) NOT NULL DEFAULT '',
-            phone VARCHAR(50) NOT NULL DEFAULT '',
+            etik_user_id BIGINT UNSIGNED NULL,
             form_data LONGTEXT NULL,
             token VARCHAR(64) NULL,
             payment_session_id VARCHAR(200) NULL,
@@ -198,16 +135,12 @@ class Activator {
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY prestation_id (prestation_id),
-            KEY slot_id (slot_id),
-            KEY etik_user_id (etik_user_id),
             KEY booking_date (booking_date),
+            KEY etik_user_id (etik_user_id),
             KEY status (status)
-        ) {$charset_collate};";
-        dbDelta($sql_res);
+        ) {$c};" );
 
-        // 3. Table des fermetures exceptionnelles
-        $table_closures = $wpdb->prefix . 'etik_prestation_closures';
-        $sql_closures = "CREATE TABLE {$table_closures} (
+        dbDelta( "CREATE TABLE {$wpdb->prefix}etik_prestation_closures (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             prestation_id BIGINT UNSIGNED NOT NULL,
             global TINYINT(1) NOT NULL DEFAULT 0,
@@ -215,22 +148,17 @@ class Activator {
             closure_date DATE NOT NULL,
             PRIMARY KEY (id),
             KEY prestation_id (prestation_id),
-            KEY global (global),
             KEY closure_date (closure_date)
-        ) {$charset_collate};";
-        dbDelta($sql_closures);
+        ) {$c};" );
     }
 
-    /**
-     * Crée les tables liées aux formulaires dynamiques.
-     */
-    private static function create_form_tables() {
-        global $wpdb;
-        $charset_collate = $wpdb->get_charset_collate();
+    // ─── Tables formulaires ───────────────────────────────────────────────────
 
-        // 1. Table des formulaires
-        $table_forms = $wpdb->prefix . 'etik_forms';
-        $sql_forms = "CREATE TABLE {$table_forms} (
+    private static function create_form_tables() : void {
+        global $wpdb;
+        $c = $wpdb->get_charset_collate();
+
+        dbDelta( "CREATE TABLE {$wpdb->prefix}etik_forms (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             title VARCHAR(191) NOT NULL,
             description TEXT NULL,
@@ -241,12 +169,9 @@ class Activator {
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY slug (slug)
-        ) {$charset_collate};";
-        dbDelta($sql_forms);
+        ) {$c};" );
 
-        // 2. Table des champs de formulaire
-        $table_fields = $wpdb->prefix . 'etik_form_fields';
-        $sql_fields = "CREATE TABLE {$table_fields} (
+        dbDelta( "CREATE TABLE {$wpdb->prefix}etik_form_fields (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             form_id BIGINT UNSIGNED NOT NULL,
             field_key VARCHAR(100) NOT NULL,
@@ -260,110 +185,70 @@ class Activator {
             PRIMARY KEY (id),
             KEY form_id (form_id),
             KEY sort_order (sort_order)
-        ) {$charset_collate};";
-        dbDelta($sql_fields);
+        ) {$c};" );
 
-        // 3. Créer le formulaire par défaut s'il n'existe pas
         self::maybe_create_default_form();
     }
 
-    /**
-     * Crée la table wp_etik_form_responses.
-     * Approche "JSON Monolithique" : Une ligne par soumission contenant tout le formulaire chiffré.
-     */
-    private static function create_form_responses_table() {
-        global $wpdb;
-        $charset_collate = $wpdb->get_charset_collate();
-        $table_name = $wpdb->prefix . 'etik_form_responses';
+    // ─── Table réponses formulaires ───────────────────────────────────────────
 
-        $sql = "CREATE TABLE {$table_name} (
+    private static function create_form_responses_table() : void {
+        global $wpdb;
+        $c = $wpdb->get_charset_collate();
+        // Pas de UNIQUE KEY sur submission_id : permet les retry sans erreur DB
+        dbDelta( "CREATE TABLE {$wpdb->prefix}etik_form_responses (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            submission_id BIGINT UNSIGNED NOT NULL,       -- ID de l'inscription ou réservation
-            submission_type VARCHAR(20) NOT NULL,         -- 'inscription' ou 'reservation'
-            form_id BIGINT UNSIGNED NOT NULL,             -- ID du formulaire utilisé
-            form_snapshot LONGTEXT NOT NULL,              -- JSON chiffré : { questions: [...], answers: {...} }
+            submission_id BIGINT UNSIGNED NOT NULL,
+            submission_type VARCHAR(20) NOT NULL,
+            form_id BIGINT UNSIGNED NOT NULL,
+            form_snapshot LONGTEXT NOT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY unique_submission (submission_id, submission_type), -- Une seule réponse par inscription
+            KEY submission_idx (submission_id, submission_type),
             KEY form_idx (form_id),
             KEY created_at_idx (created_at)
-        ) {$charset_collate};";
-
-        dbDelta($sql);
+        ) {$c};" );
     }
 
-    // =========================================================================
-    // DONNÉES PAR DÉFAUT
-    // =========================================================================
+    // ─── Formulaire par défaut ────────────────────────────────────────────────
 
-    /**
-     * Insère un formulaire d'inscription standard si aucun formulaire par défaut n'existe.
-     */
-    private static function maybe_create_default_form() {
+    private static function maybe_create_default_form() : void {
         global $wpdb;
-        $table_forms = $wpdb->prefix . 'etik_forms';
-        $table_fields = $wpdb->prefix . 'etik_form_fields';
+        $tf = $wpdb->prefix . 'etik_forms';
+        $ff = $wpdb->prefix . 'etik_form_fields';
 
-        // Vérifier si un formulaire par défaut existe déjà
-        $exists = $wpdb->get_var("SELECT id FROM {$table_forms} WHERE is_default = 1 LIMIT 1");
-        if ($exists) {
+        if ( $wpdb->get_var( "SELECT id FROM {$tf} WHERE is_default = 1 LIMIT 1" ) ) {
             return;
         }
 
-        // Créer le formulaire par défaut
-        $wpdb->insert($table_forms, [
+        $wpdb->insert( $tf, [
             'title'       => 'Formulaire d\'inscription standard',
-            'description' => 'Formulaire généré automatiquement à l\'activation du plugin.',
+            'description' => 'Créé automatiquement à l\'activation.',
             'slug'        => 'inscription-standard',
             'attach_type' => 'all',
             'is_default'  => 1,
-        ], ['%s', '%s', '%s', '%s', '%d']);
+        ], [ '%s', '%s', '%s', '%s', '%d' ] );
 
-        $form_id = (int) $wpdb->insert_id;
-        if (!$form_id) {
-            return;
-        }
+        $fid = (int) $wpdb->insert_id;
+        if ( ! $fid ) return;
 
-        // Champs par défaut
-        $fields = [
-            [
-                'field_key'   => 'first_name',
-                'label'       => 'Prénom',
-                'type'        => 'text',
-                'placeholder' => 'Votre prénom',
-                'required'    => 1,
-                'sort_order'  => 1,
-            ],
-            [
-                'field_key'   => 'last_name',
-                'label'       => 'Nom',
-                'type'        => 'text',
-                'placeholder' => 'Votre nom',
-                'required'    => 0,
-                'sort_order'  => 2,
-            ],
-            [
-                'field_key'   => 'email',
-                'label'       => 'E-mail',
-                'type'        => 'email',
-                'placeholder' => 'votre@email.fr',
-                'required'    => 1,
-                'sort_order'  => 3,
-            ],
-            [
-                'field_key'   => 'phone',
-                'label'       => 'Téléphone',
-                'type'        => 'tel',
-                'placeholder' => '06 00 00 00 00',
-                'required'    => 0,
-                'sort_order'  => 4,
-            ],
-        ];
-
-        foreach ($fields as $field) {
-            $wpdb->insert($table_fields, array_merge($field, ['form_id' => $form_id, 'help_text' => '', 'options' => null]), [
-                '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s'
-            ]);
+        foreach ( [
+            [ 'first_name', 'Prénom',    'text',  'Votre prénom',   1, 1 ],
+            [ 'last_name',  'Nom',        'text',  'Votre nom',      0, 2 ],
+            [ 'email',      'E-mail',     'email', 'votre@email.fr', 1, 3 ],
+            [ 'phone',      'Téléphone',  'tel',   '06 xx xx xx xx', 0, 4 ],
+        ] as [ $key, $label, $type, $ph, $req, $order ] ) {
+            $wpdb->insert( $ff, [
+                'form_id'     => $fid,
+                'field_key'   => $key,
+                'label'       => $label,
+                'type'        => $type,
+                'placeholder' => $ph,
+                'required'    => $req,
+                'sort_order'  => $order,
+                'help_text'   => '',
+                'options'     => null,
+            ], [ '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s' ] );
         }
     }
 }
