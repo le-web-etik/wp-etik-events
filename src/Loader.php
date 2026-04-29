@@ -282,7 +282,26 @@ class Loader {
         }
     */
 
+
     public function public_assets() {
+        global $post;
+
+        // On ne charge les assets que si nécessaire
+        $should_load = false;
+
+        // Condition 1 : Nous sommes sur une page d'événement (CPT 'etik_event')
+        if ( is_singular('etik_event') ) {
+            $should_load = true;
+        }
+        // Condition 2 : La page contient le shortcode du modal ou d'inscription
+        elseif ( is_a($post, 'WP_Post') && ( has_shortcode($post->post_content, 'etik_event_register') || has_shortcode($post->post_content, 'etik_register_form') ) ) {
+            $should_load = true;
+        }
+        
+        // Si aucune condition n'est remplie, on arrête la fonction ici.
+        if ( ! $should_load ) {
+            return;
+        }
 
         $dir_url  = WP_ETIK_PLUGIN_URL;
         $dir_path = WP_ETIK_PLUGIN_DIR;
@@ -304,7 +323,7 @@ class Loader {
         wp_enqueue_script(
             'etik-front',
             $dir_url . 'assets/js/front.js',
-            ['jquery'],
+            ['jquery', 'wp-etik-utils'],
             WP_ETIK_VERSION,
             true
         );
