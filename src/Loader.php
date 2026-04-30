@@ -336,7 +336,7 @@ class Loader {
         );
         wp_register_script(
             'etik-prestation-booking',
-            WP_ETIK_PLUGIN_URL . 'assets/js/prestation-booking.js',
+            WP_ETIK_PLUGIN_URL . 'assets/js/prestation-booking-split.js',
             [ 'jquery' ], WP_ETIK_VERSION, true
         );
 

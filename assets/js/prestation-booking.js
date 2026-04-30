@@ -95,6 +95,36 @@
 
             // Nouvelle réservation
             $m.on('click', '.etik-btn-new', function () { Booking.reset($m); });
+
+            // ── Mode multi-prestation : étape 0 ──────────────────────────
+            if ( $m.data('prestation-ids') ) {
+ 
+                // Clic sur une carte de prestation → charger le calendrier
+                $m.on('click', '.etik-prestation-card', function () {
+                    var $card = $(this);
+                    var pid   = $card.data('prestation-id');
+ 
+                    // Propager les attributs de paiement sur le module
+                    $m.data('prestation-id',    pid).attr('data-prestation-id',    pid);
+                    $m.data('pay-required', $card.data('pay-required')).attr('data-pay-required', $card.data('pay-required'));
+                    $m.data('price',        $card.data('price')).attr('data-price',        $card.data('price'));
+ 
+                    // Mettre à jour le champ caché du formulaire
+                    $m.find('input[name="prestation_id"]').val(pid);
+ 
+                    // Charger le calendrier dynamiquement
+                    self.loadCalendarForPrestation($m, pid);
+                });
+ 
+                // Retour depuis le calendrier → revenir à la sélection
+                $m.on('click', '.etik-btn-back-prestation', function () {
+                    $m.removeData('prestation-id').removeAttr('data-prestation-id');
+                    $m.find('input[name="prestation_id"]').val('');
+                    showStep($m, 'select-prestation');
+                    resetSlots($m);
+                });
+            }
+
         },
 
         // ── Navigation mois ──────────────────────────────────────────────────
@@ -178,6 +208,56 @@
                 d.setDate(d.getDate() + 1);
             }
         },
+
+        // ── Chargement dynamique du calendrier (mode multi) ──────────────────
+        loadCalendarForPrestation: function ($m, pid) {
+            var self   = this;
+            var now    = new Date();
+            var year   = now.getFullYear();
+            var month  = now.getMonth() + 1;
+            var view   = $m.attr('data-view') || 'month';
+            var months = i18n.months || ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+            var label  = months[month - 1] + ' ' + year;
+            var back   = escHtml( i18n.back_to_prestations || '← Prestations' );
+ 
+            // Construire la nav + le wrapper calendrier dans l'étape 1
+            var navHtml =
+                '<div class="etik-booking-nav">' +
+                    '<button type="button" class="etik-btn-back-prestation etik-nav-btn">' + back + '</button>' +
+                    '<button type="button" class="etik-nav-prev" aria-label="Mois précédent">&#8249;</button>' +
+                    '<span class="etik-month-label">' + escHtml(label) + '</span>' +
+                    '<button type="button" class="etik-nav-next" aria-label="Mois suivant">&#8250;</button>' +
+                    '<span style="flex:1"></span>' +
+                    '<button type="button" class="etik-toggle-view" data-view="month" title="Vue mensuelle">&#9635;</button>' +
+                    '<button type="button" class="etik-toggle-view" data-view="week"  title="Vue hebdomadaire">&#9776;</button>' +
+                '</div>' +
+                '<div class="etik-calendar-wrap etik-loading" data-year="' + year + '" data-month="' + month + '">' +
+                    '<span class="etik-loading">' + escHtml(i18n.loading || 'Chargement…') + '</span>' +
+                '</div>';
+ 
+            $m.find('.etik-step-calendar').html(navHtml);
+            showStep($m, 'calendar');
+            scrollTo($m.find('.etik-step-calendar'));
+ 
+            // Charger la disponibilité via AJAX
+            post({
+                action:        'etik_get_month_availability',
+                prestation_id: pid,
+                year:          year,
+                month:         month,
+            }, function (data) {
+                var $wrap = $m.find('.etik-calendar-wrap');
+                $wrap.removeClass('etik-loading');
+                $wrap.html( buildCalendar(year, month, data) );
+                $m.find('.etik-calendar').addClass('etik-view-' + view);
+                if (view === 'week') self.initWeekView($m);
+            }, function () {
+                $m.find('.etik-calendar-wrap').html(
+                    '<p class="etik-slot-error">Erreur de chargement du calendrier.</p>'
+                );
+            });
+        },
+
 
         // ── Chargement créneaux ──────────────────────────────────────────────
 
@@ -428,8 +508,17 @@
             });
         },
 
+        // ── Réinitialisation (mise à jour pour le mode multi) ────────────────
         reset: function ($m) {
-            showStep($m, 'calendar');
+            if ( $m.data('prestation-ids') ) {
+                // Mode multi : revenir au choix de prestation
+                $m.removeData('prestation-id').removeAttr('data-prestation-id');
+                $m.find('input[name="prestation_id"]').val('');
+                showStep($m, 'select-prestation');
+            } else {
+                // Mode mono : revenir au calendrier
+                showStep($m, 'calendar');
+            }
             $m.find('.etik-cal-day').removeClass('etik-cal-selected');
             $m.find('input[name="slot_id"], input[name="booking_date"], input[name="booking_time"]').val('');
             $m.find('.etik-booking-feedback').hide();

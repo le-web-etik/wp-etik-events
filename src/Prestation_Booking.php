@@ -28,10 +28,13 @@ class Prestation_Booking {
             'etik_get_day_slots',
             'etik_get_prestation_form',
             'etik_book_prestation',
+            'etik_get_month_avail_multi',
+            'etik_get_day_slots_multi',
         ] as $action ) {
             add_action( "wp_ajax_{$action}",        [ $this, "ajax_{$action}" ] );
             add_action( "wp_ajax_nopriv_{$action}", [ $this, "ajax_{$action}" ] );
         }
+
     }
 
     // ─── DB UPGRADE ───────────────────────────────────────────────────────────
@@ -674,4 +677,89 @@ class Prestation_Booking {
         $h .= '</div></body></html>';
         return $h;
     }
+
+    // ─── AJAX : disponibilité mensuelle multi-prestations ─────────────────────
+ 
+    /**
+     * Retourne la disponibilité fusionnée pour plusieurs prestations.
+     * Règle de priorité : available > full > closed > past > none
+     * Action : etik_get_month_avail_multi
+     */
+    public function ajax_etik_get_month_avail_multi() : void {
+        check_ajax_referer( 'etik_booking_nonce', 'nonce' );
+ 
+        $raw   = stripslashes( $_POST['prestation_ids'] ?? '[]' );
+        $ids   = array_filter( array_map( 'intval', (array) json_decode( $raw, true ) ) );
+        $year  = intval( $_POST['year']  ?? date( 'Y' ) );
+        $month = intval( $_POST['month'] ?? date( 'n' ) );
+ 
+        if ( empty( $ids ) ) {
+            wp_send_json_error( [ 'message' => 'IDs manquants.' ] );
+        }
+ 
+        $merged = [];
+        foreach ( $ids as $pid ) {
+            foreach ( self::get_month_availability( $pid, $year, $month ) as $date => $status ) {
+                $merged[ $date ] = self::_status_priority( $merged[ $date ] ?? 'none', $status );
+            }
+        }
+ 
+        wp_send_json_success( $merged );
+    }
+ 
+    // ─── AJAX : créneaux d'une journée pour plusieurs prestations ─────────────
+ 
+    /**
+     * Retourne les créneaux de toutes les prestations pour un jour donné.
+     * Action : etik_get_day_slots_multi
+     *
+     * @return void  JSON : { date, prestations: [ {id, title, color, price, pay_required, slots[]} ] }
+     */
+    public function ajax_etik_get_day_slots_multi() : void {
+        check_ajax_referer( 'etik_booking_nonce', 'nonce' );
+ 
+        $raw  = stripslashes( $_POST['prestation_ids'] ?? '[]' );
+        $ids  = array_filter( array_map( 'intval', (array) json_decode( $raw, true ) ) );
+        $date = sanitize_text_field( $_POST['date'] ?? '' );
+ 
+        if ( empty( $ids ) || ! $date || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+            wp_send_json_error( [ 'message' => 'Paramètres invalides.' ] );
+        }
+ 
+        $result = [];
+        foreach ( $ids as $pid ) {
+            $post = get_post( $pid );
+            if ( ! $post || $post->post_status !== 'publish' ) continue;
+ 
+            $slots = self::get_slots_for_date( $pid, $date );
+            if ( empty( $slots ) ) continue;
+ 
+            $price = (float) get_post_meta( $pid, 'etik_prestation_price',            true );
+            $pay_r = (bool)  get_post_meta( $pid, 'etik_prestation_payment_required', true );
+ 
+            $result[] = [
+                'id'              => $pid,
+                'title'           => $post->post_title,
+                'color'           => get_post_meta( $pid, 'etik_prestation_color', true ) ?: '#2aa78a',
+                'price'           => $price,
+                'price_formatted' => number_format( $price, 2, ',', ' ' ) . ' €',
+                'pay_required'    => $pay_r,
+                'slots'           => $slots,
+            ];
+        }
+ 
+        wp_send_json_success( [ 'date' => $date, 'prestations' => $result ] );
+    }
+ 
+    // ─── Helpers statuts ─────────────────────────────────────────────────────
+ 
+    /**
+     * Retourne le statut ayant la priorité la plus haute.
+     * available(4) > full(3) > closed(2) > past(1) > none(0)
+     */
+    private static function _status_priority( string $a, string $b ) : string {
+        static $p = [ 'available' => 4, 'full' => 3, 'closed' => 2, 'past' => 1, 'none' => 0 ];
+        return ( $p[ $b ] ?? 0 ) > ( $p[ $a ] ?? 0 ) ? $b : $a;
+    }
+
 }
